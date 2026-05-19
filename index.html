@@ -1,0 +1,2159 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Escritorium - Ambiente Criativo</title>
+<link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js">
+
+// ===== TOOLBAR + : SET COLOR & PIN IMG =====
+const colorPalette = [
+  '#e74c3c','#f39c12','#f1c40f','#2ecc71','#1abc9c','#3498db',
+  '#9b59b6','#e91e63','#00bcd4','#ff9800','#4caf50','#8bc34a',
+  '#cddc39','#ffeb3b','#ffc107','#ff5722','#795548','#607d8b',
+  '#d4af37','#c0392b','#8e44ad','#2980b9','#27ae60','#d35400'
+];
+
+function toggleToolbarPlusMenu(btn){
+  const menu = document.getElementById('toolbarPlusMenu');
+  menu.classList.toggle('show');
+  // Fechar color picker se estiver aberto
+  document.getElementById('colorPickerDropdown').classList.remove('show');
+}
+
+function openColorPicker(){
+  const dropdown = document.getElementById('colorPickerDropdown');
+  const palette = document.getElementById('colorPalette');
+  if(palette.children.length === 0){
+    colorPalette.forEach(c => {
+      const swatch = document.createElement('div');
+      swatch.className = 'color-swatch';
+      swatch.style.background = c;
+      swatch.onclick = function(){ applyColorToSelection(c); };
+      palette.appendChild(swatch);
+    });
+  }
+  dropdown.classList.add('show');
+  document.getElementById('toolbarPlusMenu').classList.remove('show');
+}
+
+function closeColorPicker(){
+  document.getElementById('colorPickerDropdown').classList.remove('show');
+}
+
+function applyColorToSelection(color){
+  const sel = window.getSelection();
+  if(!sel.rangeCount) return;
+  const range = sel.getRangeAt(0);
+  if(range.collapsed) return;
+
+  const span = document.createElement('span');
+  span.style.color = color;
+  try {
+    range.surroundContents(span);
+  } catch(e) {
+    // Se a seleção cruza nós, usar outra abordagem
+    const contents = range.extractContents();
+    span.appendChild(contents);
+    range.insertNode(span);
+  }
+  sel.removeAllRanges();
+  updateStats();
+  showToast('Cor aplicada!');
+}
+
+function pinImage(){
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = function(){
+    const file = input.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e){
+      const img = document.createElement('img');
+      img.src = e.target.result;
+      img.className = 'inline-img';
+      img.style.maxWidth = '100%';
+      img.style.borderRadius = '8px';
+      img.style.margin = '.5rem 0';
+      img.style.display = 'block';
+
+      const editor = document.getElementById('editorText');
+      editor.focus();
+      const sel = window.getSelection();
+      if(sel.rangeCount){
+        const range = sel.getRangeAt(0);
+        range.deleteContents();
+        range.insertNode(img);
+        range.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      } else {
+        editor.appendChild(img);
+      }
+      showToast('Imagem inserida!');
+      updateStats();
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
+  document.getElementById('toolbarPlusMenu').classList.remove('show');
+}
+
+// Fechar menus ao clicar fora
+document.addEventListener('click', function(e){
+  if(!e.target.closest('.toolbar-plus-menu') && !e.target.closest('[onclick*="toggleToolbarPlusMenu"]') && !e.target.closest('.color-picker-dropdown')){
+    document.getElementById('toolbarPlusMenu').classList.remove('show');
+    document.getElementById('colorPickerDropdown').classList.remove('show');
+  }
+  if(!e.target.closest('.footer-menu') && !e.target.closest('#footerPlusBtn')){
+    document.getElementById('footerMenu').classList.remove('show');
+  }
+});
+
+
+// ===== RODAPÉ EXPANSÍVEL =====
+let activeFooterWidget = null;
+
+function toggleFooterMenu(){
+  const menu = document.getElementById('footerMenu');
+  menu.classList.toggle('show');
+}
+
+function activateFooterWidget(type){
+  const center = document.getElementById('footerCenter');
+  const menu = document.getElementById('footerMenu');
+  menu.classList.remove('show');
+
+  // Limpar widgets ativos
+  center.innerHTML = '';
+  activeFooterWidget = type;
+
+  const widget = document.createElement('div');
+  widget.className = 'footer-widget active';
+  widget.id = 'footerWidget_' + type;
+
+  if(type === 'share'){
+    widget.innerHTML = '<span>📤 Compartilhar nota</span><button class="footer-widget-close" onclick="closeFooterWidget()">✕</button>';
+    widget.onclick = function(e){ if(e.target.tagName !== 'BUTTON') shareNote(); };
+  }
+  else if(type === 'export'){
+    widget.innerHTML = '<span>📁 Exportar</span><button class="footer-widget-close" onclick="closeFooterWidget()">✕</button>';
+    const subMenu = document.createElement('div');
+    subMenu.style.cssText = 'position:absolute;bottom:calc(100% + .5rem);left:50%;transform:translateX(-50%);background:var(--bg-primary);border:1px solid var(--border);border-radius:10px;padding:.4rem;display:none;flex-direction:column;gap:.2rem;box-shadow:0 8px 24px var(--shadow);min-width:160px;z-index:300;';
+    subMenu.innerHTML = '<div class="footer-menu-item" onclick="exportPDF();hideExportSub()">📄 PDF</div><div class="footer-menu-item" onclick="exportWord();hideExportSub()">📝 Word</div><div class="footer-menu-item" onclick="exportText();hideExportSub()">📃 Texto</div>';
+    widget.appendChild(subMenu);
+    widget.onclick = function(e){ 
+      if(e.target.tagName !== 'BUTTON'){
+        subMenu.style.display = subMenu.style.display === 'flex' ? 'none' : 'flex';
+      }
+    };
+    widget.style.position = 'relative';
+  }
+  else if(type === 'pomodoro'){
+    widget.innerHTML = '<div class="footer-pomodoro" id="footerPomodoroDisplay">25:00</div><div class="footer-pomo-controls"><button class="footer-pomo-btn" id="footerPomoPlay" onclick="toggleFooterPomodoro()">▶️</button><button class="footer-pomo-btn" onclick="pausePomodoro();syncFooterPomodoro()">⏸️</button><button class="footer-pomo-btn" onclick="resetPomodoro();syncFooterPomodoro()">🔄</button></div><button class="footer-widget-close" onclick="closeFooterWidget()">✕</button>';
+    syncFooterPomodoro();
+  }
+  else if(type === 'chars'){
+    const text = document.getElementById('editorText').innerText || '';
+    const chars = text.length;
+    const words = text.trim().split(/\s+/).filter(w=>w.length>0).length;
+    widget.innerHTML = '<span class="footer-char-count">📊 ' + chars + ' caracteres | ' + words + ' palavras</span><button class="footer-widget-close" onclick="closeFooterWidget()">✕</button>';
+    // Atualizar em tempo real
+    widget.dataset.autoUpdate = 'true';
+  }
+
+  center.appendChild(widget);
+
+  // Adicionar outro + ao lado
+  const plus2 = document.createElement('button');
+  plus2.className = 'footer-plus-btn';
+  plus2.textContent = '+';
+  plus2.style.width = '28px'; plus2.style.height = '28px'; plus2.style.fontSize = '1rem';
+  plus2.onclick = toggleFooterMenu;
+  center.appendChild(plus2);
+}
+
+function hideExportSub(){
+  const sub = document.querySelector('#footerWidget_export > div[style*="position:absolute"]');
+  if(sub) sub.style.display = 'none';
+}
+
+function closeFooterWidget(){
+  document.getElementById('footerCenter').innerHTML = '';
+  activeFooterWidget = null;
+}
+
+function shareNote(){
+  const title = document.getElementById('docTitle').value || 'Nota Escritorium';
+  const text = document.getElementById('editorText').innerText || '';
+  if(navigator.share){
+    navigator.share({title: title, text: text.substring(0, 500)}).catch(()=>{});
+  } else {
+    navigator.clipboard.writeText(title + '\n\n' + text).then(()=>showToast('Nota copiada para a área de transferência!'));
+  }
+}
+
+function exportText(){
+  const title = document.getElementById('docTitle').value || 'Documento';
+  const text = document.getElementById('editorText').innerText || '';
+  const blob = new Blob([text], {type: 'text/plain;charset=utf-8'});
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = title + '.txt';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  showToast('Texto baixado!');
+}
+
+// ===== POMODORO SYNC COM RODAPÉ =====
+const originalUpdatePomodoroDisplay = updatePomodoroDisplay;
+updatePomodoroDisplay = function(){
+  originalUpdatePomodoroDisplay();
+  syncFooterPomodoro();
+};
+
+function syncFooterPomodoro(){
+  const footerDisp = document.getElementById('footerPomodoroDisplay');
+  if(!footerDisp) return;
+  const m = Math.floor(pomodoroSeconds/60).toString().padStart(2,'0');
+  const s = (pomodoroSeconds%60).toString().padStart(2,'0');
+  footerDisp.textContent = m + ':' + s;
+  const playBtn = document.getElementById('footerPomoPlay');
+  if(playBtn) playBtn.textContent = pomodoroRunning ? '⏸️' : '▶️';
+}
+
+function toggleFooterPomodoro(){
+  if(pomodoroRunning){
+    pausePomodoro();
+  } else {
+    startPomodoro();
+  }
+  syncFooterPomodoro();
+}
+
+// ===== CONFIGURAÇÕES: FONTE & CONTRASTE =====
+function setEditorFont(el){
+  const font = el.getAttribute('data-font');
+  document.getElementById('editorText').style.fontFamily = font;
+  document.getElementById('docTitle').style.fontFamily = font;
+  document.querySelectorAll('.font-option').forEach(o=>o.classList.remove('active'));
+  el.classList.add('active');
+  localStorage.setItem('escritorium-font', font);
+  showToast('Fonte alterada');
+}
+
+function setEditorContrast(el){
+  const contrast = el.getAttribute('data-contrast');
+  const editor = document.getElementById('editorText');
+  const title = document.getElementById('docTitle');
+  let color = '';
+  if(contrast === 'black') color = '#000000';
+  else if(contrast === 'white') color = '#ffffff';
+  else if(contrast === 'gray') color = '#888888';
+  editor.style.color = color;
+  title.style.color = color;
+  document.querySelectorAll('.contrast-option').forEach(o=>o.classList.remove('active'));
+  el.classList.add('active');
+  localStorage.setItem('escritorium-contrast', contrast);
+  showToast('Contraste: ' + contrast);
+}
+
+function setFontWeight(val){
+  document.getElementById('editorText').style.fontWeight = val;
+  document.getElementById('docTitle').style.fontWeight = (val >= 700 ? 700 : val);
+  document.getElementById('fontWeightValue').textContent = val;
+  localStorage.setItem('escritorium-font-weight', val);
+}
+
+// Restaurar preferências salvas
+const savedFont = localStorage.getItem('escritorium-font');
+if(savedFont){
+  document.getElementById('editorText').style.fontFamily = savedFont;
+  document.getElementById('docTitle').style.fontFamily = savedFont;
+  document.querySelectorAll('.font-option').forEach(o=>{
+    if(o.getAttribute('data-font') === savedFont) o.classList.add('active');
+  });
+}
+const savedContrast = localStorage.getItem('escritorium-contrast');
+if(savedContrast){
+  let color = '';
+  if(savedContrast === 'black') color = '#000000';
+  else if(savedContrast === 'white') color = '#ffffff';
+  else if(savedContrast === 'gray') color = '#888888';
+  document.getElementById('editorText').style.color = color;
+  document.getElementById('docTitle').style.color = color;
+  document.querySelectorAll('.contrast-option').forEach(o=>{
+    if(o.getAttribute('data-contrast') === savedContrast) o.classList.add('active');
+  });
+}
+const savedWeight = localStorage.getItem('escritorium-font-weight');
+if(savedWeight){
+  document.getElementById('fontWeightSlider').value = savedWeight;
+  setFontWeight(savedWeight);
+}
+
+// ===== ATUALIZAR CONTAGEM DE CARACTERES EM TEMPO REAL =====
+const originalUpdateStats2 = updateStats;
+updateStats = function(){
+  originalUpdateStats2();
+  if(activeFooterWidget === 'chars'){
+    const widget = document.getElementById('footerWidget_chars');
+    if(widget){
+      const text = document.getElementById('editorText').innerText || '';
+      const chars = text.length;
+      const words = text.trim().split(/\s+/).filter(w=>w.length>0).length;
+      widget.querySelector('.footer-char-count').textContent = '📊 ' + chars + ' caracteres | ' + words + ' palavras';
+    }
+  }
+};
+
+
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js">
+
+// ===== TOOLBAR + : SET COLOR & PIN IMG =====
+const colorPalette = [
+  '#e74c3c','#f39c12','#f1c40f','#2ecc71','#1abc9c','#3498db',
+  '#9b59b6','#e91e63','#00bcd4','#ff9800','#4caf50','#8bc34a',
+  '#cddc39','#ffeb3b','#ffc107','#ff5722','#795548','#607d8b',
+  '#d4af37','#c0392b','#8e44ad','#2980b9','#27ae60','#d35400'
+];
+
+function toggleToolbarPlusMenu(btn){
+  const menu = document.getElementById('toolbarPlusMenu');
+  menu.classList.toggle('show');
+  // Fechar color picker se estiver aberto
+  document.getElementById('colorPickerDropdown').classList.remove('show');
+}
+
+function openColorPicker(){
+  const dropdown = document.getElementById('colorPickerDropdown');
+  const palette = document.getElementById('colorPalette');
+  if(palette.children.length === 0){
+    colorPalette.forEach(c => {
+      const swatch = document.createElement('div');
+      swatch.className = 'color-swatch';
+      swatch.style.background = c;
+      swatch.onclick = function(){ applyColorToSelection(c); };
+      palette.appendChild(swatch);
+    });
+  }
+  dropdown.classList.add('show');
+  document.getElementById('toolbarPlusMenu').classList.remove('show');
+}
+
+function closeColorPicker(){
+  document.getElementById('colorPickerDropdown').classList.remove('show');
+}
+
+function applyColorToSelection(color){
+  const sel = window.getSelection();
+  if(!sel.rangeCount) return;
+  const range = sel.getRangeAt(0);
+  if(range.collapsed) return;
+
+  const span = document.createElement('span');
+  span.style.color = color;
+  try {
+    range.surroundContents(span);
+  } catch(e) {
+    // Se a seleção cruza nós, usar outra abordagem
+    const contents = range.extractContents();
+    span.appendChild(contents);
+    range.insertNode(span);
+  }
+  sel.removeAllRanges();
+  updateStats();
+  showToast('Cor aplicada!');
+}
+
+function pinImage(){
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = function(){
+    const file = input.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e){
+      const img = document.createElement('img');
+      img.src = e.target.result;
+      img.className = 'inline-img';
+      img.style.maxWidth = '100%';
+      img.style.borderRadius = '8px';
+      img.style.margin = '.5rem 0';
+      img.style.display = 'block';
+
+      const editor = document.getElementById('editorText');
+      editor.focus();
+      const sel = window.getSelection();
+      if(sel.rangeCount){
+        const range = sel.getRangeAt(0);
+        range.deleteContents();
+        range.insertNode(img);
+        range.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      } else {
+        editor.appendChild(img);
+      }
+      showToast('Imagem inserida!');
+      updateStats();
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
+  document.getElementById('toolbarPlusMenu').classList.remove('show');
+}
+
+// Fechar menus ao clicar fora
+document.addEventListener('click', function(e){
+  if(!e.target.closest('.toolbar-plus-menu') && !e.target.closest('[onclick*="toggleToolbarPlusMenu"]') && !e.target.closest('.color-picker-dropdown')){
+    document.getElementById('toolbarPlusMenu').classList.remove('show');
+    document.getElementById('colorPickerDropdown').classList.remove('show');
+  }
+  if(!e.target.closest('.footer-menu') && !e.target.closest('#footerPlusBtn')){
+    document.getElementById('footerMenu').classList.remove('show');
+  }
+});
+
+
+// ===== RODAPÉ EXPANSÍVEL =====
+let activeFooterWidget = null;
+
+function toggleFooterMenu(){
+  const menu = document.getElementById('footerMenu');
+  menu.classList.toggle('show');
+}
+
+function activateFooterWidget(type){
+  const center = document.getElementById('footerCenter');
+  const menu = document.getElementById('footerMenu');
+  menu.classList.remove('show');
+
+  // Limpar widgets ativos
+  center.innerHTML = '';
+  activeFooterWidget = type;
+
+  const widget = document.createElement('div');
+  widget.className = 'footer-widget active';
+  widget.id = 'footerWidget_' + type;
+
+  if(type === 'share'){
+    widget.innerHTML = '<span>📤 Compartilhar nota</span><button class="footer-widget-close" onclick="closeFooterWidget()">✕</button>';
+    widget.onclick = function(e){ if(e.target.tagName !== 'BUTTON') shareNote(); };
+  }
+  else if(type === 'export'){
+    widget.innerHTML = '<span>📁 Exportar</span><button class="footer-widget-close" onclick="closeFooterWidget()">✕</button>';
+    const subMenu = document.createElement('div');
+    subMenu.style.cssText = 'position:absolute;bottom:calc(100% + .5rem);left:50%;transform:translateX(-50%);background:var(--bg-primary);border:1px solid var(--border);border-radius:10px;padding:.4rem;display:none;flex-direction:column;gap:.2rem;box-shadow:0 8px 24px var(--shadow);min-width:160px;z-index:300;';
+    subMenu.innerHTML = '<div class="footer-menu-item" onclick="exportPDF();hideExportSub()">📄 PDF</div><div class="footer-menu-item" onclick="exportWord();hideExportSub()">📝 Word</div><div class="footer-menu-item" onclick="exportText();hideExportSub()">📃 Texto</div>';
+    widget.appendChild(subMenu);
+    widget.onclick = function(e){ 
+      if(e.target.tagName !== 'BUTTON'){
+        subMenu.style.display = subMenu.style.display === 'flex' ? 'none' : 'flex';
+      }
+    };
+    widget.style.position = 'relative';
+  }
+  else if(type === 'pomodoro'){
+    widget.innerHTML = '<div class="footer-pomodoro" id="footerPomodoroDisplay">25:00</div><div class="footer-pomo-controls"><button class="footer-pomo-btn" id="footerPomoPlay" onclick="toggleFooterPomodoro()">▶️</button><button class="footer-pomo-btn" onclick="pausePomodoro();syncFooterPomodoro()">⏸️</button><button class="footer-pomo-btn" onclick="resetPomodoro();syncFooterPomodoro()">🔄</button></div><button class="footer-widget-close" onclick="closeFooterWidget()">✕</button>';
+    syncFooterPomodoro();
+  }
+  else if(type === 'chars'){
+    const text = document.getElementById('editorText').innerText || '';
+    const chars = text.length;
+    const words = text.trim().split(/\s+/).filter(w=>w.length>0).length;
+    widget.innerHTML = '<span class="footer-char-count">📊 ' + chars + ' caracteres | ' + words + ' palavras</span><button class="footer-widget-close" onclick="closeFooterWidget()">✕</button>';
+    // Atualizar em tempo real
+    widget.dataset.autoUpdate = 'true';
+  }
+
+  center.appendChild(widget);
+
+  // Adicionar outro + ao lado
+  const plus2 = document.createElement('button');
+  plus2.className = 'footer-plus-btn';
+  plus2.textContent = '+';
+  plus2.style.width = '28px'; plus2.style.height = '28px'; plus2.style.fontSize = '1rem';
+  plus2.onclick = toggleFooterMenu;
+  center.appendChild(plus2);
+}
+
+function hideExportSub(){
+  const sub = document.querySelector('#footerWidget_export > div[style*="position:absolute"]');
+  if(sub) sub.style.display = 'none';
+}
+
+function closeFooterWidget(){
+  document.getElementById('footerCenter').innerHTML = '';
+  activeFooterWidget = null;
+}
+
+function shareNote(){
+  const title = document.getElementById('docTitle').value || 'Nota Escritorium';
+  const text = document.getElementById('editorText').innerText || '';
+  if(navigator.share){
+    navigator.share({title: title, text: text.substring(0, 500)}).catch(()=>{});
+  } else {
+    navigator.clipboard.writeText(title + '\n\n' + text).then(()=>showToast('Nota copiada para a área de transferência!'));
+  }
+}
+
+function exportText(){
+  const title = document.getElementById('docTitle').value || 'Documento';
+  const text = document.getElementById('editorText').innerText || '';
+  const blob = new Blob([text], {type: 'text/plain;charset=utf-8'});
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = title + '.txt';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  showToast('Texto baixado!');
+}
+
+// ===== POMODORO SYNC COM RODAPÉ =====
+const originalUpdatePomodoroDisplay = updatePomodoroDisplay;
+updatePomodoroDisplay = function(){
+  originalUpdatePomodoroDisplay();
+  syncFooterPomodoro();
+};
+
+function syncFooterPomodoro(){
+  const footerDisp = document.getElementById('footerPomodoroDisplay');
+  if(!footerDisp) return;
+  const m = Math.floor(pomodoroSeconds/60).toString().padStart(2,'0');
+  const s = (pomodoroSeconds%60).toString().padStart(2,'0');
+  footerDisp.textContent = m + ':' + s;
+  const playBtn = document.getElementById('footerPomoPlay');
+  if(playBtn) playBtn.textContent = pomodoroRunning ? '⏸️' : '▶️';
+}
+
+function toggleFooterPomodoro(){
+  if(pomodoroRunning){
+    pausePomodoro();
+  } else {
+    startPomodoro();
+  }
+  syncFooterPomodoro();
+}
+
+// ===== CONFIGURAÇÕES: FONTE & CONTRASTE =====
+function setEditorFont(el){
+  const font = el.getAttribute('data-font');
+  document.getElementById('editorText').style.fontFamily = font;
+  document.getElementById('docTitle').style.fontFamily = font;
+  document.querySelectorAll('.font-option').forEach(o=>o.classList.remove('active'));
+  el.classList.add('active');
+  localStorage.setItem('escritorium-font', font);
+  showToast('Fonte alterada');
+}
+
+function setEditorContrast(el){
+  const contrast = el.getAttribute('data-contrast');
+  const editor = document.getElementById('editorText');
+  const title = document.getElementById('docTitle');
+  let color = '';
+  if(contrast === 'black') color = '#000000';
+  else if(contrast === 'white') color = '#ffffff';
+  else if(contrast === 'gray') color = '#888888';
+  editor.style.color = color;
+  title.style.color = color;
+  document.querySelectorAll('.contrast-option').forEach(o=>o.classList.remove('active'));
+  el.classList.add('active');
+  localStorage.setItem('escritorium-contrast', contrast);
+  showToast('Contraste: ' + contrast);
+}
+
+function setFontWeight(val){
+  document.getElementById('editorText').style.fontWeight = val;
+  document.getElementById('docTitle').style.fontWeight = (val >= 700 ? 700 : val);
+  document.getElementById('fontWeightValue').textContent = val;
+  localStorage.setItem('escritorium-font-weight', val);
+}
+
+// Restaurar preferências salvas
+const savedFont = localStorage.getItem('escritorium-font');
+if(savedFont){
+  document.getElementById('editorText').style.fontFamily = savedFont;
+  document.getElementById('docTitle').style.fontFamily = savedFont;
+  document.querySelectorAll('.font-option').forEach(o=>{
+    if(o.getAttribute('data-font') === savedFont) o.classList.add('active');
+  });
+}
+const savedContrast = localStorage.getItem('escritorium-contrast');
+if(savedContrast){
+  let color = '';
+  if(savedContrast === 'black') color = '#000000';
+  else if(savedContrast === 'white') color = '#ffffff';
+  else if(savedContrast === 'gray') color = '#888888';
+  document.getElementById('editorText').style.color = color;
+  document.getElementById('docTitle').style.color = color;
+  document.querySelectorAll('.contrast-option').forEach(o=>{
+    if(o.getAttribute('data-contrast') === savedContrast) o.classList.add('active');
+  });
+}
+const savedWeight = localStorage.getItem('escritorium-font-weight');
+if(savedWeight){
+  document.getElementById('fontWeightSlider').value = savedWeight;
+  setFontWeight(savedWeight);
+}
+
+// ===== ATUALIZAR CONTAGEM DE CARACTERES EM TEMPO REAL =====
+const originalUpdateStats2 = updateStats;
+updateStats = function(){
+  originalUpdateStats2();
+  if(activeFooterWidget === 'chars'){
+    const widget = document.getElementById('footerWidget_chars');
+    if(widget){
+      const text = document.getElementById('editorText').innerText || '';
+      const chars = text.length;
+      const words = text.trim().split(/\s+/).filter(w=>w.length>0).length;
+      widget.querySelector('.footer-char-count').textContent = '📊 ' + chars + ' caracteres | ' + words + ' palavras';
+    }
+  }
+};
+
+
+</script>
+<style>
+:root {
+--bg-primary:#f5f0e8;--bg-secondary:#e8e0d4;--bg-tertiary:#d4c8b8;--text-primary:#2c1810;--text-secondary:#5c4033;
+--accent:#8b6914;--accent-light:#a67c52;--border:#c4b49a;--sidebar-bg:#2c1810;--sidebar-text:#e8e0d4;
+--card-bg:rgba(255,255,255,0.7);--shadow:rgba(44,24,16,0.15);--banner-bg:#8b6914;
+--wallpaper-blur:0px;--wallpaper-overlay:rgba(245,240,232,0.85);--editor-opacity:0.7;--editor-blur:0px;
+--left-sidebar-width:260px;--right-sidebar-width:280px;--left-collapsed-width:44px;--right-collapsed-width:44px;
+}
+[data-theme="paper"]{--bg-primary:#faf8f3;--bg-secondary:#f0ebe3;--bg-tertiary:#e5ddd2;--text-primary:#1a1a1a;--text-secondary:#4a4a4a;--accent:#5c4033;--accent-light:#8b7355;--border:#d4ccc0;--sidebar-bg:#2c2c2c;--sidebar-text:#f0ebe3;--card-bg:rgba(255,255,255,0.85);--shadow:rgba(0,0,0,0.1);--banner-bg:#5c4033;--wallpaper-overlay:rgba(250,248,243,0.9);}
+[data-theme="black"]{--bg-primary:#0a0a0a;--bg-secondary:#141414;--bg-tertiary:#1e1e1e;--text-primary:#e8e8e8;--text-secondary:#a0a0a0;--accent:#c9a96e;--accent-light:#d4b87a;--border:#333;--sidebar-bg:#000;--sidebar-text:#e8e8e8;--card-bg:rgba(30,30,30,0.8);--shadow:rgba(0,0,0,0.5);--banner-bg:#c9a96e;--wallpaper-overlay:rgba(10,10,10,0.92);}
+[data-theme="wine"]{--bg-primary:#f5f0f0;--bg-secondary:#ebe0e0;--bg-tertiary:#ddd0d0;--text-primary:#2b0a0a;--text-secondary:#5c1a1a;--accent:#722f37;--accent-light:#8b3a44;--border:#c9a9a9;--sidebar-bg:#2b0a0a;--sidebar-text:#f5e6e6;--card-bg:rgba(255,250,250,0.75);--shadow:rgba(43,10,10,0.15);--banner-bg:#722f37;--wallpaper-overlay:rgba(245,240,240,0.88);}
+[data-theme="coffee"]{--bg-primary:#f5f0e8;--bg-secondary:#e8e0d4;--bg-tertiary:#d4c8b8;--text-primary:#2c1810;--text-secondary:#5c4033;--accent:#8b6914;--accent-light:#a67c52;--border:#c4b49a;--sidebar-bg:#2c1810;--sidebar-text:#e8e0d4;--card-bg:rgba(255,255,255,0.7);--shadow:rgba(44,24,16,0.15);--banner-bg:#8b6914;--wallpaper-overlay:rgba(245,240,232,0.85);}
+[data-theme="all-coffee"]{--bg-primary:#1a120b;--bg-secondary:#2c1810;--bg-tertiary:#3d2416;--text-primary:#e8d5c4;--text-secondary:#b8a08a;--accent:#c9a96e;--accent-light:#d4b87a;--border:#4a3428;--sidebar-bg:#0f0a06;--sidebar-text:#e8d5c4;--card-bg:rgba(30,20,12,0.85);--shadow:rgba(0,0,0,0.6);--banner-bg:#6b4423;--wallpaper-overlay:rgba(26,18,11,0.93);}
+[data-theme="all-wine"]{--bg-primary:#1a0a0a;--bg-secondary:#2b0a0a;--bg-tertiary:#3d1010;--text-primary:#e8c8c8;--text-secondary:#b88888;--accent:#c9a96e;--accent-light:#d4b87a;--border:#4a2020;--sidebar-bg:#0f0505;--sidebar-text:#e8c8c8;--card-bg:rgba(40,12,12,0.85);--shadow:rgba(0,0,0,0.6);--banner-bg:#722f37;--wallpaper-overlay:rgba(26,10,10,0.93);}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:var(--bg-primary);color:var(--text-primary);overflow-x:hidden;transition:all .4s ease}
+.wallpaper-container{position:fixed;top:0;left:0;width:100%;height:100%;z-index:-1;overflow:hidden}
+.wallpaper-container img{width:100%;height:100%;object-fit:cover;filter:blur(var(--wallpaper-blur));transition:filter .3s ease}
+.wallpaper-overlay{position:absolute;top:0;left:0;width:100%;height:100%;background:var(--wallpaper-overlay);transition:background .4s ease}
+.main-header{background:var(--bg-secondary);border-bottom:1px solid var(--border);padding:0 2rem;display:flex;align-items:center;justify-content:space-between;height:60px;position:sticky;top:0;z-index:100;transition:all .4s ease}
+.logo{display:flex;align-items:center;gap:.75rem;font-family:'Crimson Text',serif;font-size:1.5rem;font-weight:700;color:var(--text-primary)}
+.logo svg{width:32px;height:32px;color:var(--accent)}
+.nav-links{display:flex;gap:2rem;list-style:none}
+.nav-links a{text-decoration:none;color:var(--text-secondary);font-size:.9rem;font-weight:500;transition:color .3s}
+.nav-links a:hover{color:var(--accent)}
+.profile-trigger{display:flex;align-items:center;gap:.5rem;cursor:pointer;padding:.25rem .5rem;border-radius:8px;transition:background .2s}
+.profile-trigger:hover{background:var(--bg-tertiary)}
+.profile-avatar{width:32px;height:32px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:600;color:white;overflow:hidden}
+.profile-avatar img{width:100%;height:100%;object-fit:cover}
+.sound-bar{background:var(--sidebar-bg);color:var(--sidebar-text);padding:.75rem 2rem;display:flex;align-items:center;gap:2rem;flex-wrap:wrap;transition:all .4s ease}
+.sound-section{display:flex;align-items:center;gap:1rem}
+.sound-section label{display:flex;align-items:center;gap:.5rem;font-size:.85rem;cursor:pointer}
+.toggle-switch{position:relative;width:44px;height:24px;background:var(--bg-tertiary);border-radius:12px;cursor:pointer;transition:background .3s;flex-shrink:0}
+.toggle-switch.active{background:var(--accent-light)}
+.toggle-switch::after{content:'';position:absolute;top:2px;left:2px;width:20px;height:20px;background:white;border-radius:50%;transition:transform .3s}
+.toggle-switch.active::after{transform:translateX(20px)}
+.volume-control{display:flex;align-items:center;gap:.5rem}
+.volume-control input[type="range"]{width:80px;height:4px;-webkit-appearance:none;background:var(--bg-tertiary);border-radius:2px;outline:none}
+.volume-control input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;background:var(--accent-light);border-radius:50%;cursor:pointer}
+.music-info{font-size:.8rem;opacity:.8;display:flex;align-items:center;gap:.5rem}
+.player-controls{display:flex;gap:.5rem}
+.player-btn{background:none;border:none;color:var(--sidebar-text);cursor:pointer;padding:.25rem;border-radius:4px;transition:background .2s}
+.player-btn:hover{background:rgba(255,255,255,.1)}
+.app-layout{display:grid;grid-template-columns:var(--left-sidebar-width) 1fr var(--right-sidebar-width);min-height:calc(100vh - 60px - 50px);gap:1rem;padding:1rem;max-width:1600px;margin:0 auto;transition:grid-template-columns .35s ease}
+.app-layout.left-collapsed{grid-template-columns:var(--left-collapsed-width) 1fr var(--right-sidebar-width)}
+.app-layout.right-collapsed{grid-template-columns:var(--left-sidebar-width) 1fr var(--right-collapsed-width)}
+.app-layout.both-collapsed{grid-template-columns:var(--left-collapsed-width) 1fr var(--right-collapsed-width)}
+.sidebar{background:var(--sidebar-bg);color:var(--sidebar-text);border-radius:12px;display:flex;flex-direction:column;transition:all .35s ease;position:relative;overflow:hidden;min-width:0}
+.sidebar-header{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-bottom:1px solid rgba(255,255,255,.1);flex-shrink:0;transition:all .3s ease}
+.sidebar.collapsed .sidebar-header{padding:1rem .5rem;justify-content:center;border-bottom:none}
+.sidebar-title{font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.1em;opacity:.9;display:flex;align-items:center;gap:.5rem;white-space:nowrap;transition:opacity .3s}
+.sidebar.collapsed .sidebar-title span{opacity:0;width:0;overflow:hidden}
+.collapse-btn{background:none;border:none;color:var(--sidebar-text);cursor:pointer;padding:.25rem;opacity:.6;transition:opacity .2s;flex-shrink:0}
+.collapse-btn:hover{opacity:1}
+.sidebar-content{display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden;opacity:1;transition:opacity .3s ease,padding .3s ease;flex:1;min-height:0;padding:.75rem 1.25rem 1.25rem}
+.sidebar.collapsed .sidebar-content{opacity:0;padding:0;pointer-events:none;height:0;overflow:hidden}
+.sidebar-content::-webkit-scrollbar{width:4px}
+.sidebar-content::-webkit-scrollbar-track{background:transparent}
+.sidebar-content::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:2px}
+.sidebar-content::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.3)}
+.menu-item{display:flex;align-items:center;gap:.75rem;padding:.75rem;border-radius:8px;cursor:pointer;transition:all .2s;font-size:.9rem;opacity:.9;white-space:nowrap;flex-shrink:0}
+.menu-item:hover,.menu-item.active{background:rgba(255,255,255,.1);opacity:1}
+.menu-item svg{width:18px;height:18px;flex-shrink:0}
+.backhistory-container{display:flex;flex-direction:column;gap:.5rem;overflow-y:auto;max-height:calc(100vh - 240px);padding-right:4px}
+.backhistory-container::-webkit-scrollbar{width:4px}
+.backhistory-container::-webkit-scrollbar-track{background:transparent}
+.backhistory-container::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:2px}
+.bh-category{border-radius:8px;overflow:hidden;transition:all .2s}
+.bh-category-header{display:flex;align-items:center;justify-content:space-between;padding:.6rem .75rem;cursor:pointer;border-radius:8px;transition:all .2s;user-select:none}
+.bh-category-header:hover{background:rgba(255,255,255,.08)}
+.bh-category-header.active{background:rgba(255,255,255,.12)}
+.bh-category-left{display:flex;align-items:center;gap:.5rem;font-size:.85rem;font-weight:500}
+.bh-chevron{width:14px;height:14px;transition:transform .2s;opacity:.6}
+.bh-category.expanded .bh-chevron{transform:rotate(90deg)}
+.bh-items{display:none;flex-direction:column;gap:.25rem;padding:.25rem 0 .25rem 1.5rem;animation:slideDown .2s ease}
+.bh-category.expanded .bh-items{display:flex}
+@keyframes slideDown{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+.bh-item{display:flex;align-items:center;gap:.5rem;padding:.4rem .6rem;border-radius:6px;font-size:.8rem;opacity:.75;cursor:pointer;transition:all .2s;position:relative}
+.bh-item:hover{background:rgba(255,255,255,.08);opacity:1}
+.bh-item .bh-edit{display:none;background:none;border:none;color:rgba(255,255,255,.5);cursor:pointer;padding:.1rem;margin-left:auto;font-size:.7rem}
+.bh-item:hover .bh-edit{display:block}
+.bh-item .bh-edit:hover{color:white}
+.bh-add-btn{display:flex;align-items:center;justify-content:center;gap:.4rem;padding:.5rem;border:1.5px dashed rgba(255,255,255,.2);border-radius:8px;background:transparent;color:rgba(255,255,255,.6);cursor:pointer;font-size:.8rem;transition:all .2s;margin-top:.5rem;flex-shrink:0}
+.bh-add-btn:hover{border-color:var(--accent-light);color:var(--accent-light)}
+.bh-add-menu{display:none;flex-direction:column;gap:.25rem;padding:.5rem;background:rgba(0,0,0,.3);border-radius:8px;margin-top:.5rem;animation:fadeIn .2s ease}
+.bh-add-menu.show{display:flex}
+.bh-add-option{padding:.5rem .75rem;border-radius:6px;font-size:.8rem;cursor:pointer;transition:background .2s;color:var(--sidebar-text)}
+.bh-add-option:hover{background:rgba(255,255,255,.1)}
+.bh-input{width:100%;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:6px;padding:.4rem .6rem;color:var(--sidebar-text);font-family:inherit;font-size:.8rem;outline:none}
+.bh-input::placeholder{color:rgba(255,255,255,.4)}
+.main-content{background:var(--card-bg);backdrop-filter:blur(var(--editor-blur));border-radius:12px;border:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;transition:all .4s ease;min-width:0;opacity:var(--editor-opacity)}
+.editor-header{padding:1rem 1.5rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-shrink:0}
+.word-count{font-size:.8rem;color:var(--text-secondary);font-weight:500}
+.progress-bar{width:120px;height:4px;background:var(--bg-tertiary);border-radius:2px;overflow:hidden}
+.progress-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .3s}
+.editor-actions{display:flex;gap:.5rem}
+.icon-btn{background:none;border:none;color:var(--text-secondary);cursor:pointer;padding:.4rem;border-radius:6px;transition:all .2s;display:flex;align-items:center;justify-content:center}
+.icon-btn:hover{background:var(--bg-secondary);color:var(--accent)}
+.editor-body{flex:1;padding:1.5rem 2rem;overflow-y:auto;min-height:0}
+.editor-title{font-family:'Crimson Text',serif;font-size:1.75rem;font-weight:700;color:var(--text-primary);border:none;outline:none;width:100%;background:transparent;margin-bottom:1rem}
+.editor-title::placeholder{color:var(--text-secondary);opacity:.5}
+.banner-area{width:100%;min-height:140px;background:var(--banner-bg);border-radius:8px;margin-bottom:1.5rem;display:flex;align-items:center;justify-content:center;color:white;font-size:.9rem;cursor:pointer;position:relative;overflow:hidden;transition:all .3s;user-select:none}
+.banner-area.has-image{background:none}
+.banner-area img{width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0;pointer-events:none}
+.banner-placeholder{display:flex;flex-direction:column;align-items:center;gap:.5rem;z-index:1;pointer-events:none}
+.banner-area:hover .banner-placeholder{opacity:.8}
+#bannerInput{display:none}
+.banner-menu{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,.85);backdrop-filter:blur(8px);border-radius:10px;padding:.5rem;display:none;flex-direction:column;gap:.25rem;z-index:10;min-width:180px;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.banner-menu.show{display:flex}
+.banner-menu-item{padding:.6rem .875rem;border-radius:6px;color:white;font-size:.85rem;cursor:pointer;transition:background .2s;display:flex;align-items:center;gap:.5rem}
+.banner-menu-item:hover{background:rgba(255,255,255,.15)}
+.editor-text{font-family:'Crimson Text',serif;font-size:1.15rem;line-height:1.8;color:var(--text-primary);border:none;outline:none;width:100%;min-height:400px;background:transparent}
+.editor-text:empty::before{content:"Comece a escrever sua história...";color:var(--text-secondary);opacity:.4;pointer-events:none}
+.editor-toolbar{padding:.75rem 1.5rem;border-top:1px solid var(--border);display:flex;gap:.25rem;flex-wrap:wrap;flex-shrink:0}
+.toolbar-btn{background:none;border:none;color:var(--text-secondary);cursor:pointer;padding:.4rem .6rem;border-radius:4px;font-family:'Crimson Text',serif;font-size:1rem;transition:all .2s;border:2px solid transparent}
+.toolbar-btn:hover{background:var(--bg-secondary);color:var(--accent)}
+.toolbar-btn.active{border-color:var(--accent);color:var(--accent);background:var(--bg-secondary)}
+.notes-list{display:flex;flex-direction:column;gap:.75rem;overflow-y:auto;max-height:calc(100vh - 280px)}
+.note-card{background:var(--card-bg);backdrop-filter:blur(8px);border:1px solid var(--border);border-radius:8px;padding:.875rem;font-size:.85rem;color:var(--text-primary);cursor:pointer;transition:all .2s;position:relative}
+.note-card:hover{border-color:var(--accent);transform:translateY(-1px);box-shadow:0 4px 12px var(--shadow)}
+.note-card textarea{width:100%;border:none;outline:none;background:transparent;font-family:inherit;font-size:inherit;color:inherit;resize:none;min-height:60px}
+.note-actions{display:flex;gap:.25rem;margin-top:.5rem;opacity:0;transition:opacity .2s}
+.note-card:hover .note-actions{opacity:1}
+.note-action-btn{background:none;border:none;color:var(--text-secondary);cursor:pointer;padding:.2rem;font-size:.75rem;border-radius:4px;transition:all .2s}
+.note-action-btn:hover{color:var(--accent);background:var(--bg-secondary)}
+.add-note-btn{margin-top:.75rem;padding:.75rem;border:2px dashed var(--border);border-radius:8px;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:.85rem;transition:all .2s;width:100%}
+.add-note-btn:hover{border-color:var(--accent);color:var(--accent)}
+.ideas-list{display:flex;flex-direction:column;gap:.75rem;overflow-y:auto;max-height:calc(100vh - 320px)}
+.idea-block{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:.75rem;position:relative}
+.idea-block textarea{width:100%;background:transparent;border:none;outline:none;color:var(--sidebar-text);font-family:inherit;font-size:.85rem;resize:none;min-height:50px}
+.idea-block textarea::placeholder{color:rgba(255,255,255,.4)}
+.idea-actions{display:flex;gap:.25rem;margin-top:.5rem;justify-content:flex-end}
+.idea-btn{background:none;border:none;color:rgba(255,255,255,.6);cursor:pointer;padding:.2rem .4rem;font-size:.75rem;border-radius:4px;transition:all .2s}
+.idea-btn:hover{color:white;background:rgba(255,255,255,.1)}
+.add-idea-btn{margin-top:.75rem;padding:.6rem;border:1px dashed rgba(255,255,255,.3);border-radius:8px;background:transparent;color:rgba(255,255,255,.7);cursor:pointer;font-size:.8rem;transition:all .2s;width:100%}
+.add-idea-btn:hover{border-color:var(--accent-light);color:var(--accent-light)}
+.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);z-index:1000;display:none;align-items:center;justify-content:center}
+.modal-overlay.active{display:flex}
+.modal{background:var(--bg-primary);border:1px solid var(--border);border-radius:16px;width:90%;max-width:520px;max-height:85vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px var(--shadow);animation:modalIn .3s ease}
+@keyframes modalIn{from{opacity:0;transform:scale(.95) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.modal-header{padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-title{font-family:'Crimson Text',serif;font-size:1.25rem;font-weight:700;color:var(--text-primary)}
+.modal-close{background:none;border:none;color:var(--text-secondary);cursor:pointer;padding:.4rem;border-radius:6px;transition:all .2s}
+.modal-close:hover{background:var(--bg-secondary);color:var(--text-primary)}
+.modal-body{padding:1.5rem;overflow-y:auto;display:flex;flex-direction:column;gap:1.5rem}
+.settings-section{display:flex;flex-direction:column;gap:.75rem}
+.settings-label{font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-secondary)}
+.theme-options{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem}
+.theme-option{padding:.75rem;border:2px solid var(--border);border-radius:10px;cursor:pointer;text-align:center;transition:all .2s;font-size:.8rem}
+.theme-option:hover{border-color:var(--accent)}
+.theme-option.active{border-color:var(--accent);background:var(--bg-secondary)}
+.theme-preview{width:100%;height:36px;border-radius:6px;margin-bottom:.4rem;border:1px solid var(--border)}
+.theme-paper{background:#faf8f3}.theme-black{background:#0a0a0a}.theme-wine{background:#f5f0f0}.theme-coffee{background:#f5f0e8}.theme-all-coffee{background:#1a120b}.theme-all-wine{background:#1a0a0a}
+.setting-row{display:flex;align-items:center;justify-content:space-between;padding:.75rem 0;border-bottom:1px solid var(--border)}
+.setting-row:last-child{border-bottom:none}
+.setting-desc{font-size:.85rem;color:var(--text-secondary)}
+.file-input-wrapper{position:relative;overflow:hidden;display:inline-block}
+.file-input-wrapper input[type=file]{position:absolute;left:0;top:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.file-btn{padding:.5rem 1rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-size:.85rem;cursor:pointer;transition:all .2s}
+.file-btn:hover{background:var(--bg-tertiary)}
+.range-setting{display:flex;align-items:center;gap:1rem;flex:1;justify-content:flex-end}
+.range-setting input[type="range"]{width:100px;height:4px;-webkit-appearance:none;background:var(--bg-tertiary);border-radius:2px;outline:none}
+.range-setting input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;background:var(--accent);border-radius:50%;cursor:pointer}
+.range-value{font-size:.85rem;color:var(--text-secondary);min-width:45px;text-align:right}
+.main-footer{background:var(--sidebar-bg);color:var(--sidebar-text);padding:1rem 2rem;display:flex;align-items:center;justify-content:center;gap:2rem;font-size:.85rem}
+.main-footer a{color:var(--sidebar-text);text-decoration:none;opacity:.7;transition:opacity .2s}
+.main-footer a:hover{opacity:1}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}::-webkit-scrollbar-thumb:hover{background:var(--accent-light)}
+.dropdown{position:relative}
+.dropdown-menu{position:absolute;top:100%;right:0;background:var(--bg-primary);border:1px solid var(--border);border-radius:8px;padding:.5rem;min-width:160px;box-shadow:0 8px 24px var(--shadow);display:none;z-index:50}
+.dropdown.active .dropdown-menu{display:block}
+.dropdown-item{padding:.5rem .75rem;border-radius:6px;cursor:pointer;font-size:.85rem;transition:all .2s;color:var(--text-primary)}
+.dropdown-item:hover{background:var(--bg-secondary)}
+.tab-content{display:none;flex-direction:column;gap:.5rem;animation:fadeIn .2s ease}
+.tab-content.active{display:flex}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.projects-list{display:flex;flex-direction:column;gap:.5rem}
+.project-item{padding:.6rem .75rem;border-radius:6px;font-size:.85rem;cursor:pointer;transition:all .2s;opacity:.8}
+.project-item:hover{background:rgba(255,255,255,.1);opacity:1}
+.profile-header{display:flex;align-items:center;gap:1rem;margin-bottom:1rem}
+.profile-avatar-large{width:80px;height:80px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:2rem;color:white;overflow:hidden;cursor:pointer;position:relative;flex-shrink:0}
+.profile-avatar-large img{width:100%;height:100%;object-fit:cover}
+.profile-avatar-large .avatar-overlay{position:absolute;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s;font-size:.75rem}
+.profile-avatar-large:hover .avatar-overlay{opacity:1}
+.profile-info h3{font-family:'Crimson Text',serif;font-size:1.25rem;margin-bottom:.25rem}
+.profile-info p{font-size:.85rem;color:var(--text-secondary)}
+.profile-bio{width:100%;min-height:80px;padding:.75rem;border-radius:8px;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-primary);font-family:inherit;font-size:.9rem;resize:vertical;outline:none}
+.profile-bio::placeholder{color:var(--text-secondary);opacity:.5}
+.pomodoro-container{background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;padding:1.25rem;text-align:center}
+.pomodoro-time{font-family:'Crimson Text',serif;font-size:3rem;font-weight:700;color:var(--accent);line-height:1;margin-bottom:.75rem}
+.pomodoro-controls{display:flex;gap:.5rem;justify-content:center;margin-bottom:.75rem}
+.pomodoro-btn{padding:.5rem 1rem;border-radius:6px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);cursor:pointer;font-size:.85rem;transition:all .2s}
+.pomodoro-btn:hover{background:var(--accent);color:white;border-color:var(--accent)}
+.pomodoro-btn.active{background:var(--accent);color:white;border-color:var(--accent)}
+.pomodoro-status{font-size:.8rem;color:var(--text-secondary)}
+@media(max-width:1024px){.app-layout{grid-template-columns:1fr !important}.sidebar{display:none}}
+
+/* === NOVOS ESTILOS: CONTRASTE, FONTES, TOOLBAR +, RODAPÉ === */
+
+/* Seletor de cores */
+.color-picker-dropdown{
+  position:absolute;
+  bottom:100%;
+  left:50%;
+  transform:translateX(-50%);
+  background:var(--bg-primary);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:.5rem;
+  display:none;
+  flex-direction:column;
+  gap:.4rem;
+  z-index:100;
+  box-shadow:0 8px 24px var(--shadow);
+  min-width:180px;
+}
+.color-picker-dropdown.show{display:flex;}
+.color-picker-header{
+  font-size:.75rem;
+  font-weight:600;
+  color:var(--text-secondary);
+  text-transform:uppercase;
+  letter-spacing:.05em;
+  padding:0 .25rem;
+}
+.color-palette{
+  display:grid;
+  grid-template-columns:repeat(6,1fr);
+  gap:.35rem;
+}
+.color-swatch{
+  width:24px;
+  height:24px;
+  border-radius:50%;
+  cursor:pointer;
+  border:2px solid transparent;
+  transition:transform .2s,border-color .2s;
+}
+.color-swatch:hover{transform:scale(1.15);border-color:var(--text-primary);}
+.color-swatch.active{border-color:var(--accent);}
+.color-done-btn{
+  margin-top:.25rem;
+  padding:.4rem .75rem;
+  background:var(--accent);
+  color:white;
+  border:none;
+  border-radius:6px;
+  font-size:.8rem;
+  cursor:pointer;
+  transition:opacity .2s;
+}
+.color-done-btn:hover{opacity:.85;}
+
+/* Toolbar + menu */
+.toolbar-plus-menu{
+  position:absolute;
+  bottom:100%;
+  left:0;
+  background:var(--bg-primary);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:.4rem;
+  display:none;
+  flex-direction:column;
+  gap:.2rem;
+  z-index:100;
+  box-shadow:0 8px 24px var(--shadow);
+  min-width:140px;
+}
+.toolbar-plus-menu.show{display:flex;}
+.toolbar-plus-item{
+  padding:.5rem .75rem;
+  border-radius:6px;
+  font-size:.85rem;
+  cursor:pointer;
+  transition:background .2s;
+  color:var(--text-primary);
+  display:flex;
+  align-items:center;
+  gap:.5rem;
+}
+.toolbar-plus-item:hover{background:var(--bg-secondary);}
+
+/* Rodapé novo */
+.main-footer{
+  background:var(--sidebar-bg);
+  color:var(--sidebar-text);
+  padding:.75rem 2rem;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  position:relative;
+  min-height:56px;
+}
+.footer-center{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:1rem;
+}
+.footer-plus-btn{
+  width:36px;
+  height:36px;
+  border-radius:50%;
+  background:var(--accent);
+  color:white;
+  border:none;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:1.25rem;
+  transition:transform .2s,background .2s;
+  flex-shrink:0;
+}
+.footer-plus-btn:hover{transform:scale(1.1);background:var(--accent-light);}
+.footer-widget{
+  display:none;
+  align-items:center;
+  gap:.75rem;
+  background:rgba(255,255,255,.08);
+  padding:.4rem .875rem;
+  border-radius:8px;
+  font-size:.85rem;
+  animation:fadeIn .2s ease;
+}
+.footer-widget.active{display:flex;}
+.footer-widget-close{
+  background:none;
+  border:none;
+  color:rgba(255,255,255,.6);
+  cursor:pointer;
+  padding:.15rem;
+  font-size:.75rem;
+  border-radius:4px;
+  transition:color .2s;
+}
+.footer-widget-close:hover{color:white;}
+.footer-menu{
+  position:absolute;
+  bottom:calc(100% + .5rem);
+  left:50%;
+  transform:translateX(-50%);
+  background:var(--bg-primary);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:.5rem;
+  display:none;
+  flex-direction:column;
+  gap:.2rem;
+  z-index:200;
+  box-shadow:0 8px 24px var(--shadow);
+  min-width:200px;
+}
+.footer-menu.show{display:flex;}
+.footer-menu-item{
+  padding:.6rem .875rem;
+  border-radius:8px;
+  font-size:.85rem;
+  cursor:pointer;
+  transition:background .2s;
+  color:var(--text-primary);
+  display:flex;
+  align-items:center;
+  gap:.5rem;
+}
+.footer-menu-item:hover{background:var(--bg-secondary);}
+.footer-pomodoro{display:flex;align-items:center;gap:.5rem;font-family:'Crimson Text',serif;font-size:1.1rem;color:var(--accent);}
+.footer-pomodoro small{font-size:.7rem;font-family:'Inter',sans-serif;opacity:.7;}
+.footer-pomo-controls{display:flex;gap:.25rem;}
+.footer-pomo-btn{background:none;border:none;color:var(--sidebar-text);cursor:pointer;padding:.2rem;font-size:.8rem;border-radius:4px;transition:background .2s;}
+.footer-pomo-btn:hover{background:rgba(255,255,255,.1);}
+.footer-char-count{font-size:.85rem;opacity:.9;}
+
+/* Settings - Fonte e Contraste */
+.font-options{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;}
+.font-option{padding:.6rem;border:2px solid var(--border);border-radius:8px;cursor:pointer;text-align:center;transition:all .2s;font-size:.85rem;}
+.font-option:hover{border-color:var(--accent);}
+.font-option.active{border-color:var(--accent);background:var(--bg-secondary);}
+.contrast-options{display:flex;gap:.75rem;}
+.contrast-option{flex:1;padding:.6rem;border:2px solid var(--border);border-radius:8px;cursor:pointer;text-align:center;transition:all .2s;font-size:.85rem;}
+.contrast-option:hover{border-color:var(--accent);}
+.contrast-option.active{border-color:var(--accent);background:var(--bg-secondary);}
+.intensity-slider{width:100%;margin-top:.5rem;}
+
+/* Imagem inline no editor */
+.editor-text img.inline-img{max-width:100%;border-radius:8px;margin:.5rem 0;display:block;}
+
+</style>
+<base target="_blank">
+</head>
+<body data-theme="coffee">
+<div class="wallpaper-container" id="wallpaperContainer">
+<img id="wallpaperImg" src="" alt="" style="display:none;">
+<div class="wallpaper-overlay"></div>
+</div>
+
+<header class="main-header">
+<div class="logo">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path><path d="M2 2l7.586 7.586"></path><circle cx="11" cy="11" r="2"></circle></svg>
+ESCRITORIUM
+</div>
+<nav><ul class="nav-links"><li><a href="#">Home</a></li><li><a href="#">Meus Projetos</a></li><li><a href="#">Comunidade</a></li><li><a href="#">Blog</a></li><li><a href="#">Recursos</a></li><li><a href="#">Contato</a></li></ul></nav>
+<div class="profile-trigger" onclick="openProfile()">
+<div class="profile-avatar" id="headerAvatar"><span id="headerAvatarInitial">EU</span><img id="headerAvatarImg" src="" alt="" style="display:none;"></div>
+<span style="font-size:.85rem;font-weight:500">Perfil</span>
+</div>
+</header>
+
+<div class="sound-bar">
+<div class="sound-section">
+<label><div class="toggle-switch" id="natureToggle" onclick="toggleSound('nature')"></div><span>🍃 Sons de Natureza</span></label>
+<label><div class="toggle-switch" id="rainToggle" onclick="toggleSound('rain')"></div><span>🌧️ Chuva na Floresta</span></label>
+</div>
+<div class="sound-section">
+<div class="music-info">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+<span id="musicTitle">Mozart: Concerto nº 21</span>
+</div>
+<div class="player-controls">
+<button class="player-btn" onclick="prevMusic()"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg></button>
+<button class="player-btn" id="playBtn" onclick="toggleMusic()"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
+<button class="player-btn" onclick="nextMusic()"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg></button>
+</div>
+<div class="volume-control">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+<input type="range" min="0" max="100" value="50" id="volumeSlider" onchange="setVolume(this.value)">
+</div>
+</div>
+</div>
+
+<div class="app-layout" id="appLayout">
+<aside class="sidebar" id="leftSidebar">
+<div class="sidebar-header">
+<div class="sidebar-title">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+<span>PAINEL</span>
+</div>
+<button class="collapse-btn" onclick="toggleSidebar('left')" title="Recolher/Expandir">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+</button>
+</div>
+<div class="sidebar-content" id="leftSidebarContent">
+<div class="menu-item active" onclick="switchTab('projects',this)">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
+<span>MEUS PROJETOS</span>
+</div>
+<div class="menu-item" onclick="switchTab('ideas',this)">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+<span>IDEIAS</span>
+</div>
+<div class="menu-item" onclick="switchTab('backhistory',this)">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+<span>BACKHISTORY</span>
+</div>
+<div class="menu-item" onclick="switchTab('goals',this)">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+<span>METAS</span>
+</div>
+<div class="menu-item" onclick="openSettings()">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+<span>CONFIGURAÇÕES</span>
+</div>
+
+<div class="tab-content active" id="tab-projects">
+<div class="projects-list">
+<div class="project-item">📖 O Segredo da Floresta</div>
+<div class="project-item">📖 Crônicas de Aetheria</div>
+<div class="project-item">📖 Memórias de Um Vampiro</div>
+<div class="project-item">📖 A Última Estação</div>
+</div>
+</div>
+
+<div class="tab-content" id="tab-ideas">
+<div class="ideas-list" id="ideasList">
+<div class="idea-block"><textarea placeholder="Escreva sua ideia aqui...">O vilão deve ter uma cicatriz que conta sua história de traição...</textarea><div class="idea-actions"><button class="idea-btn" onclick="saveIdea(this)">💾 Salvar</button><button class="idea-btn" onclick="deleteIdea(this)">🗑️ Excluir</button></div></div>
+<div class="idea-block"><textarea placeholder="Escreva sua ideia aqui...">Pesquisar sobre venenos medievais para a cena do banquete</textarea><div class="idea-actions"><button class="idea-btn" onclick="saveIdea(this)">💾 Salvar</button><button class="idea-btn" onclick="deleteIdea(this)">🗑️ Excluir</button></div></div>
+</div>
+<button class="add-idea-btn" onclick="addIdea()">+ Nova Ideia</button>
+</div>
+
+<div class="tab-content" id="tab-backhistory">
+<div class="backhistory-container" id="backhistoryContainer">
+<div class="bh-category expanded" data-cat="personagens">
+<div class="bh-category-header" onclick="toggleBhCategory(this)"><div class="bh-category-left"><svg class="bh-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg><span>👤 Personagens</span></div></div>
+<div class="bh-items">
+<div class="bh-item" onclick="editBhItem(this)"><span>🧝‍♀️ Clara - Protagonista</span><button class="bh-edit" onclick="event.stopPropagation();deleteBhItem(this)">✕</button></div>
+<div class="bh-item" onclick="editBhItem(this)"><span>🦅 O Corvo - Vilão</span><button class="bh-edit" onclick="event.stopPropagation();deleteBhItem(this)">✕</button></div>
+<div class="bh-item" onclick="editBhItem(this)"><span>🧙‍♂️ Mestre Aldric - Mentor</span><button class="bh-edit" onclick="event.stopPropagation();deleteBhItem(this)">✕</button></div>
+</div>
+</div>
+<div class="bh-category" data-cat="locais">
+<div class="bh-category-header" onclick="toggleBhCategory(this)"><div class="bh-category-left"><svg class="bh-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg><span>🌍 Locais</span></div></div>
+<div class="bh-items">
+<div class="bh-item" onclick="editBhItem(this)"><span>🌲 Floresta de Eldoria</span><button class="bh-edit" onclick="event.stopPropagation();deleteBhItem(this)">✕</button></div>
+<div class="bh-item" onclick="editBhItem(this)"><span>🏰 Castelo das Sombras</span><button class="bh-edit" onclick="event.stopPropagation();deleteBhItem(this)">✕</button></div>
+</div>
+</div>
+<div class="bh-category" data-cat="cultura">
+<div class="bh-category-header" onclick="toggleBhCategory(this)"><div class="bh-category-left"><svg class="bh-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg><span>📜 Cultura</span></div></div>
+<div class="bh-items">
+<div class="bh-item" onclick="editBhItem(this)"><span>🍷 Vinho de Sangue de Dragão</span><button class="bh-edit" onclick="event.stopPropagation();deleteBhItem(this)">✕</button></div>
+<div class="bh-item" onclick="editBhItem(this)"><span>🎭 Festival das Máscaras</span><button class="bh-edit" onclick="event.stopPropagation();deleteBhItem(this)">✕</button></div>
+<div class="bh-item" onclick="editBhItem(this)"><span>🍲 Sopa de Raízes Místicas</span><button class="bh-edit" onclick="event.stopPropagation();deleteBhItem(this)">✕</button></div>
+</div>
+</div>
+<div class="bh-category" data-cat="magia">
+<div class="bh-category-header" onclick="toggleBhCategory(this)"><div class="bh-category-left"><svg class="bh-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg><span>✨ Magia & Poderes</span></div></div>
+<div class="bh-items">
+<div class="bh-item" onclick="editBhItem(this)"><span>🔮 Visão do Futuro</span><button class="bh-edit" onclick="event.stopPropagation();deleteBhItem(this)">✕</button></div>
+<div class="bh-item" onclick="editBhItem(this)"><span>⚡ Raio de Eldoria</span><button class="bh-edit" onclick="event.stopPropagation();deleteBhItem(this)">✕</button></div>
+</div>
+</div>
+</div>
+<button class="bh-add-btn" id="bhAddBtn" onclick="toggleBhAddMenu()">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+Adicionar
+</button>
+<div class="bh-add-menu" id="bhAddMenu">
+<div class="bh-add-option" onclick="showBhAddCategory()">📁 Nova Categoria</div>
+<div class="bh-add-option" onclick="showBhAddItem()">📄 Novo Elemento</div>
+</div>
+<div id="bhAddCategoryForm" style="display:none;margin-top:.5rem">
+<input type="text" class="bh-input" id="bhNewCatInput" placeholder="Nome da categoria..." onkeydown="if(event.key==='Enter')confirmBhAddCategory()">
+<div style="display:flex;gap:.5rem;margin-top:.5rem">
+<button class="file-btn" onclick="confirmBhAddCategory()" style="flex:1;font-size:.8rem">Criar</button>
+<button class="file-btn" onclick="cancelBhAdd()" style="flex:1;font-size:.8rem;background:transparent">Cancelar</button>
+</div>
+</div>
+<div id="bhAddItemForm" style="display:none;margin-top:.5rem">
+<select class="bh-input" id="bhItemCatSelect" style="margin-bottom:.5rem">
+<option value="">Escolha a categoria...</option>
+</select>
+<input type="text" class="bh-input" id="bhNewItemInput" placeholder="Nome do elemento..." onkeydown="if(event.key==='Enter')confirmBhAddItem()">
+<div style="display:flex;gap:.5rem;margin-top:.5rem">
+<button class="file-btn" onclick="confirmBhAddItem()" style="flex:1;font-size:.8rem">Adicionar</button>
+<button class="file-btn" onclick="cancelBhAdd()" style="flex:1;font-size:.8rem;background:transparent">Cancelar</button>
+</div>
+</div>
+</div>
+
+<div class="tab-content" id="tab-goals">
+<div class="projects-list">
+<div class="project-item">🎯 Capítulo 4 até sexta</div>
+<div class="project-item">🎯 50.000 palavras até dezembro</div>
+<div class="project-item">🎯 Revisar capítulo 2</div>
+</div>
+</div>
+</div>
+</aside>
+
+<main class="main-content" id="mainEditor">
+<div class="editor-header">
+<div style="display:flex;align-items:center;gap:1rem">
+<span class="word-count" id="wordCount">0 palavras</span>
+<div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+</div>
+<div class="editor-actions">
+<div class="dropdown" id="exportDropdown">
+<button class="icon-btn" onclick="toggleDropdown('exportDropdown')" title="Exportar">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+</button>
+<div class="dropdown-menu">
+<div class="dropdown-item" onclick="exportPDF()">📄 Exportar PDF</div>
+<div class="dropdown-item" onclick="exportWord()">📝 Exportar Word</div>
+</div>
+</div>
+<button class="icon-btn" onclick="openSettings()" title="Configurações">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+</button>
+</div>
+</div>
+<div class="editor-body">
+<input type="text" class="editor-title" id="docTitle" placeholder="Título do capítulo..." value="O Segredo da Floresta - Capítulo 4">
+<div class="banner-area" id="bannerArea" onclick="handleBannerClick(event)">
+<input type="file" id="bannerInput" accept="image/*" onchange="loadBanner(this)">
+<div class="banner-placeholder" id="bannerPlaceholder">
+<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.6"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+<span>Clique para adicionar banner</span>
+</div>
+<div class="banner-menu" id="bannerMenu" onclick="event.stopPropagation()">
+<div class="banner-menu-item" onclick="triggerBannerUpload()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Fazer outro upload</div>
+<div class="banner-menu-item" onclick="deleteBanner()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>Deletar banner</div>
+</div>
+</div>
+<div class="editor-text" id="editorText" contenteditable="true" oninput="updateStats()">
+<p>O vento uivava suavemente através das árvores centenárias, sussurrando segredos antigos...</p>
+<p><br></p>
+<p>Vento am mss teneiro, ansea analidades etarm ou postorde tema majo, una tes tam se em ecent unc, crando oemen todos ário que, mento de concourto que, me do os ejosns, queda seea de receita e mavswião de vivareante através progomporoas, sussurrando segredos antigos.</p>
+</div>
+</div>
+<div class="editor-toolbar" id="editorToolbar">
+<button class="toolbar-btn" data-cmd="bold" onclick="formatDoc('bold')" title="Negrito"><b>B</b></button>
+<button class="toolbar-btn" data-cmd="italic" onclick="formatDoc('italic')" title="Itálico"><i>I</i></button>
+<button class="toolbar-btn" data-cmd="underline" onclick="formatDoc('underline')" title="Sublinhado"><u>U</u></button>
+<button class="toolbar-btn" data-cmd="strikeThrough" onclick="formatDoc('strikeThrough')" title="Tachado"><s>S</s></button>
+<span style="width:1px;height:20px;background:var(--border);margin:0 .25rem"></span>
+<button class="toolbar-btn" data-cmd="insertUnorderedList" onclick="formatDoc('insertUnorderedList')" title="Lista">• Lista</button>
+<button class="toolbar-btn" data-cmd="insertOrderedList" onclick="formatDoc('insertOrderedList')" title="Numerada">1. Lista</button>
+<span style="width:1px;height:20px;background:var(--border);margin:0 .25rem"></span>
+<button class="toolbar-btn" data-cmd="justifyLeft" onclick="formatDoc('justifyLeft')" title="Alinhar esquerda">⬅️</button>
+<button class="toolbar-btn" data-cmd="justifyCenter" onclick="formatDoc('justifyCenter')" title="Centralizar">↔️</button>
+<button class="toolbar-btn" data-cmd="justifyRight" onclick="formatDoc('justifyRight')" title="Alinhar direita">➡️</button>
+<span style="width:1px;height:20px;background:var(--border);margin:0 .25rem"></span>
+<button class="toolbar-btn" data-cmd="removeFormat" onclick="formatDoc('removeFormat')" title="Limpar formatação">🧹</button>
+<button class="toolbar-btn" onclick="insertLink()" title="Link">🔗</button>
+<span style="width:1px;height:20px;background:var(--border);margin:0 .25rem"></span>
+<div style="position:relative;display:inline-block;">
+<button class="toolbar-btn" onclick="toggleToolbarPlusMenu(this)" title="Mais ferramentas" style="font-weight:700;font-size:1.1rem">+</button>
+<div class="toolbar-plus-menu" id="toolbarPlusMenu">
+<div class="toolbar-plus-item" onclick="openColorPicker()">🎨 Set color</div>
+<div class="toolbar-plus-item" onclick="pinImage()">📌 Pin Img</div>
+</div>
+<div class="color-picker-dropdown" id="colorPickerDropdown">
+<div class="color-picker-header">Selecione a cor</div>
+<div class="color-palette" id="colorPalette"></div>
+<button class="color-done-btn" onclick="closeColorPicker()">Concluído</button>
+</div>
+</div>
+</div>
+</main>
+
+<aside class="sidebar" id="rightSidebar">
+<div class="sidebar-header">
+<div class="sidebar-title">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+<span>NOTAS</span>
+</div>
+<button class="collapse-btn" onclick="toggleSidebar('right')" title="Recolher/Expandir">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+</button>
+</div>
+<div class="sidebar-content" id="rightSidebarContent">
+<div class="notes-list" id="notesList">
+<div class="note-card"><textarea placeholder="Nova nota..." onblur="saveNote(this)">Nota 1: O vilão deve ter uma cicatriz, parta ceta comtento de vol...</textarea><div class="note-actions"><button class="note-action-btn" onclick="deleteNote(this)">🗑️</button></div></div>
+<div class="note-card"><textarea placeholder="Nova nota..." onblur="saveNote(this)">Nota 2: Pesquisar sobre venenos medievais</textarea><div class="note-actions"><button class="note-action-btn" onclick="deleteNote(this)">🗑️</button></div></div>
+<div class="note-card"><textarea placeholder="Nova nota..." onblur="saveNote(this)">Nota 3: Descrição da taverna "O Corvo", no enterivro e campamento como ao mi...</textarea><div class="note-actions"><button class="note-action-btn" onclick="deleteNote(this)">🗑️</button></div></div>
+<div class="note-card"><textarea placeholder="Nova nota..." onblur="saveNote(this)">Nota 4: O arco da Clara precisa de resolução</textarea><div class="note-actions"><button class="note-action-btn" onclick="deleteNote(this)">🗑️</button></div></div>
+</div>
+<button class="add-note-btn" onclick="addNote()">+ Nova Nota...</button>
+</div>
+</aside>
+</div>
+
+<footer class="main-footer" id="mainFooter">
+<div class="footer-center" id="footerCenter">
+<!-- Widgets ativos aparecem aqui -->
+</div>
+<button class="footer-plus-btn" id="footerPlusBtn" onclick="toggleFooterMenu()">+</button>
+<div class="footer-menu" id="footerMenu">
+<div class="footer-menu-item" onclick="activateFooterWidget('share')">📤 Compartilhar nota</div>
+<div class="footer-menu-item" onclick="activateFooterWidget('export')">📁 Exportar</div>
+<div class="footer-menu-item" onclick="activateFooterWidget('pomodoro')">🍅 Pomodoro</div>
+<div class="footer-menu-item" onclick="activateFooterWidget('chars')">📊 Contagem de caracteres</div>
+</div>
+</footer>
+
+<!-- Settings Modal -->
+<div class="modal-overlay" id="settingsModal">
+<div class="modal">
+<div class="modal-header">
+<div class="modal-title">⚙️ Configurações</div>
+<button class="modal-close" onclick="closeSettings()">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+</button>
+</div>
+<div class="modal-body">
+<div class="settings-section">
+<div class="settings-label">Tema do Site</div>
+<div class="theme-options">
+<div class="theme-option" data-theme="paper" onclick="setTheme('paper')"><div class="theme-preview theme-paper"></div><div>Papel</div></div>
+<div class="theme-option" data-theme="black" onclick="setTheme('black')"><div class="theme-preview theme-black"></div><div>All Black</div></div>
+<div class="theme-option" data-theme="wine" onclick="setTheme('wine')"><div class="theme-preview theme-wine"></div><div>Vinho</div></div>
+<div class="theme-option" data-theme="coffee" onclick="setTheme('coffee')"><div class="theme-preview theme-coffee"></div><div>Café</div></div>
+<div class="theme-option" data-theme="all-coffee" onclick="setTheme('all-coffee')"><div class="theme-preview theme-all-coffee"></div><div>All Coffee</div></div>
+<div class="theme-option" data-theme="all-wine" onclick="setTheme('all-wine')"><div class="theme-preview theme-all-wine"></div><div>All Vinho</div></div>
+</div>
+</div>
+<div class="settings-section">
+<div class="settings-label">Wallpaper & Editor</div>
+<div class="setting-row">
+<div class="setting-desc">Imagem de fundo</div>
+<div class="file-input-wrapper"><button class="file-btn">Escolher arquivo</button><input type="file" accept="image/*" onchange="loadWallpaper(this)"></div>
+</div>
+<div class="setting-row">
+<div class="setting-desc">Blur do wallpaper</div>
+<div class="range-setting"><input type="range" min="0" max="20" value="0" id="wallpaperBlurSlider" oninput="setWallpaperBlur(this.value)"><span class="range-value" id="wallpaperBlurValue">0px</span></div>
+</div>
+<div class="setting-row">
+<div class="setting-desc">Blur do editor (frosted glass)</div>
+<div class="range-setting"><input type="range" min="0" max="20" value="0" id="editorBlurSlider" oninput="setEditorBlur(this.value)"><span class="range-value" id="editorBlurValue">0px</span></div>
+</div>
+<div class="setting-row">
+<div class="setting-desc">Opacidade do editor</div>
+<div class="range-setting"><input type="range" min="30" max="100" value="70" id="editorOpacitySlider" oninput="setEditorOpacity(this.value)"><span class="range-value" id="editorOpacityValue">70%</span></div>
+</div>
+<div class="setting-row">
+<div class="setting-desc">Cores compatíveis com wallpaper</div>
+<label><div class="toggle-switch" id="adaptToggle" onclick="toggleAdaptColors()"></div></label>
+</div>
+<div class="setting-row">
+<div class="setting-desc">Remover wallpaper</div>
+<button class="file-btn" onclick="removeWallpaper()">Remover</button>
+</div>
+</div>
+<div class="settings-section">
+<div class="settings-label">Exportação</div>
+<div class="setting-row">
+<div class="setting-desc">Formato padrão</div>
+<select id="defaultFormat" style="padding:.4rem .75rem;border-radius:6px;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-primary)"><option value="pdf">PDF</option><option value="word">Word (.doc)</option></select>
+</div>
+</div>
+
+<div class="settings-section">
+<div class="settings-label">Tipografia & Contraste</div>
+<div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:.5rem;">
+<div class="setting-desc">Fonte do editor</div>
+<div class="font-options" id="fontOptions">
+<div class="font-option" data-font="'Crimson Text',serif" onclick="setEditorFont(this)">Crimson</div>
+<div class="font-option" data-font="'Inter',sans-serif" onclick="setEditorFont(this)">Inter</div>
+<div class="font-option" data-font="Georgia,serif" onclick="setEditorFont(this)">Georgia</div>
+<div class="font-option" data-font="'Times New Roman',serif" onclick="setEditorFont(this)">Times</div>
+<div class="font-option" data-font="Arial,sans-serif" onclick="setEditorFont(this)">Arial</div>
+<div class="font-option" data-font="'Courier New',monospace" onclick="setEditorFont(this)">Courier</div>
+</div>
+</div>
+<div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:.5rem;">
+<div class="setting-desc">Cor do texto</div>
+<div class="contrast-options" id="contrastOptions">
+<div class="contrast-option" data-contrast="black" onclick="setEditorContrast(this)">⬛ Preto</div>
+<div class="contrast-option" data-contrast="white" onclick="setEditorContrast(this)">⬜ Branco</div>
+<div class="contrast-option" data-contrast="gray" onclick="setEditorContrast(this)">⬜ Cinza</div>
+</div>
+</div>
+<div class="setting-row">
+<div class="setting-desc">Intensidade da fonte (peso)</div>
+<div class="range-setting"><input type="range" min="300" max="900" step="100" value="400" id="fontWeightSlider" oninput="setFontWeight(this.value)"><span class="range-value" id="fontWeightValue">400</span></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<!-- Profile Modal -->
+<div class="modal-overlay" id="profileModal">
+<div class="modal">
+<div class="modal-header">
+<div class="modal-title">👤 Perfil do Escritor</div>
+<button class="modal-close" onclick="closeProfile()">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+</button>
+</div>
+<div class="modal-body">
+<div class="profile-header">
+<div class="profile-avatar-large" id="profileAvatarLarge" onclick="document.getElementById('profileAvatarInput').click()">
+<span id="profileAvatarInitial">EU</span>
+<img id="profileAvatarImg" src="" alt="" style="display:none;">
+<div class="avatar-overlay">Alterar</div>
+</div>
+<input type="file" id="profileAvatarInput" accept="image/*" style="display:none;" onchange="loadProfileAvatar(this)">
+<div class="profile-info">
+<h3 id="profileNameDisplay">Escritor Anônimo</h3>
+<p contenteditable="true" id="profileNameEdit" style="border-bottom:1px solid var(--border);padding-bottom:.25rem;margin-bottom:.5rem;outline:none;font-size:.9rem;" onblur="saveProfileName()">Escritor Anônimo</p>
+<p style="font-size:.8rem;color:var(--text-secondary)">Membro desde 2024</p>
+</div>
+</div>
+<div class="settings-section">
+<div class="settings-label">Bio</div>
+<textarea class="profile-bio" id="profileBio" placeholder="Conte um pouco sobre você e seus projetos..." onblur="saveProfileBio()">Escritor amador apaixonado por fantasia e mistério. Trabalhando no meu primeiro romance.</textarea>
+</div>
+<div class="settings-section">
+<div class="settings-label">🍅 Pomodoro</div>
+<div class="pomodoro-container">
+<div class="pomodoro-time" id="pomodoroTime">25:00</div>
+<div class="pomodoro-controls">
+<button class="pomodoro-btn" id="pomodoroStart" onclick="startPomodoro()">▶️ Iniciar</button>
+<button class="pomodoro-btn" onclick="pausePomodoro()">⏸️ Pausar</button>
+<button class="pomodoro-btn" onclick="resetPomodoro()">🔄 Resetar</button>
+</div>
+<div class="pomodoro-status" id="pomodoroStatus">Pronto para focar</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<audio id="natureAudio" loop><source src="https://cdn.pixabay.com/download/audio/2022/02/07/audio_18f981d2c7.mp3?filename=forest-wind-and-birds-6881.mp3" type="audio/mpeg"></audio>
+<audio id="rainAudio" loop><source src="https://cdn.pixabay.com/download/audio/2021/08/09/audio_88447e769f.mp3?filename=rain-and-thunder-16705.mp3" type="audio/mpeg"></audio>
+<audio id="musicAudio"><source src="https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=mozart-piano-concerto-21-2nd-movement-10137.mp3" type="audio/mpeg"></audio>
+
+<script>
+const sidebarState={left:false,right:false};
+function toggleSidebar(side){
+sidebarState[side]=!sidebarState[side];
+const layout=document.getElementById('appLayout');
+const sidebar=document.getElementById(side+'Sidebar');
+const btnSvg=sidebar.querySelector('.collapse-btn svg polyline');
+if(sidebarState[side]){
+sidebar.classList.add('collapsed');
+if(side==='left'){layout.classList.add('left-collapsed');btnSvg.setAttribute('points','9 18 15 12 9 6');}
+else{layout.classList.add('right-collapsed');btnSvg.setAttribute('points','15 18 9 12 15 6');}
+}else{
+sidebar.classList.remove('collapsed');
+if(side==='left'){layout.classList.remove('left-collapsed');btnSvg.setAttribute('points','15 18 9 12 15 6');}
+else{layout.classList.remove('right-collapsed');btnSvg.setAttribute('points','9 18 15 12 9 6');}
+}
+if(sidebarState.left&&sidebarState.right){layout.classList.add('both-collapsed');}
+else{layout.classList.remove('both-collapsed');}
+}
+
+function switchTab(tabName,el){
+document.querySelectorAll('#leftSidebar .menu-item').forEach(item=>item.classList.remove('active'));
+el.classList.add('active');
+document.querySelectorAll('.tab-content').forEach(tc=>tc.classList.remove('active'));
+const target=document.getElementById('tab-'+tabName);
+if(target)target.classList.add('active');
+}
+
+function updateStats(){
+const editor=document.getElementById('editorText');
+const text=editor.innerText||'';
+const words=text.trim().split(/\s+/).filter(w=>w.length>0).length;
+document.getElementById('wordCount').textContent=words+' palavras';
+const progress=Math.min((words/1000)*100,100);
+document.getElementById('progressFill').style.width=progress+'%';
+updateToolbarStates();
+}
+updateStats();
+
+function updateToolbarStates(){
+document.querySelectorAll('.toolbar-btn[data-cmd]').forEach(btn=>{
+const cmd=btn.getAttribute('data-cmd');
+if(cmd==='removeFormat')return;
+try{if(document.queryCommandState(cmd)){btn.classList.add('active');}else{btn.classList.remove('active');}}catch(e){}
+});
+}
+document.addEventListener('selectionchange',updateToolbarStates);
+document.getElementById('editorText').addEventListener('keyup',updateToolbarStates);
+document.getElementById('editorText').addEventListener('mouseup',updateToolbarStates);
+document.getElementById('editorText').addEventListener('click',updateToolbarStates);
+
+function formatDoc(cmd,value=null){
+document.execCommand(cmd,false,value);
+document.getElementById('editorText').focus();
+updateStats();
+setTimeout(updateToolbarStates,0);
+}
+function insertLink(){const url=prompt('Digite a URL:');if(url)formatDoc('createLink',url);}
+
+let bannerMenuTimeout;
+function handleBannerClick(e){
+const area=document.getElementById('bannerArea');
+const menu=document.getElementById('bannerMenu');
+if(area.classList.contains('has-image')){
+e.stopPropagation();
+menu.classList.add('show');
+clearTimeout(bannerMenuTimeout);
+bannerMenuTimeout=setTimeout(()=>menu.classList.remove('show'),4000);
+}else{triggerBannerUpload();}
+}
+function triggerBannerUpload(){
+document.getElementById('bannerInput').click();
+document.getElementById('bannerMenu').classList.remove('show');
+}
+function loadBanner(input){
+const file=input.files[0];
+if(!file)return;
+const reader=new FileReader();
+reader.onload=function(e){
+const area=document.getElementById('bannerArea');
+area.innerHTML='<img src="'+e.target.result+'" alt="Banner" style="width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0;"><input type="file" id="bannerInput" accept="image/*" onchange="loadBanner(this)" style="display:none;"><div class="banner-menu" id="bannerMenu" onclick="event.stopPropagation()"><div class="banner-menu-item" onclick="triggerBannerUpload()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Fazer outro upload</div><div class="banner-menu-item" onclick="deleteBanner()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>Deletar banner</div></div>';
+area.classList.add('has-image');
+showToast('Banner adicionado!');
+};
+reader.readAsDataURL(file);
+input.value='';
+}
+function deleteBanner(){
+const area=document.getElementById('bannerArea');
+area.classList.remove('has-image');
+area.innerHTML='<input type="file" id="bannerInput" accept="image/*" onchange="loadBanner(this)" style="display:none;"><div class="banner-placeholder" id="bannerPlaceholder"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.6"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg><span>Clique para adicionar banner</span></div><div class="banner-menu" id="bannerMenu" onclick="event.stopPropagation()"><div class="banner-menu-item" onclick="triggerBannerUpload()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Fazer outro upload</div><div class="banner-menu-item" onclick="deleteBanner()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>Deletar banner</div></div>';
+showToast('Banner removido');
+}
+
+function addIdea(){
+const list=document.getElementById('ideasList');
+const block=document.createElement('div');
+block.className='idea-block';
+block.innerHTML='<textarea placeholder="Escreva sua ideia aqui..."></textarea><div class="idea-actions"><button class="idea-btn" onclick="saveIdea(this)">💾 Salvar</button><button class="idea-btn" onclick="deleteIdea(this)">🗑️ Excluir</button></div>';
+list.appendChild(block);
+block.querySelector('textarea').focus();
+}
+function saveIdea(btn){showToast('Ideia salva!');}
+function deleteIdea(btn){btn.closest('.idea-block').remove();}
+
+function addNote(){
+const list=document.getElementById('notesList');
+const card=document.createElement('div');
+card.className='note-card';
+card.innerHTML='<textarea placeholder="Nova nota..." onblur="saveNote(this)"></textarea><div class="note-actions"><button class="note-action-btn" onclick="deleteNote(this)">🗑️</button></div>';
+list.appendChild(card);
+card.querySelector('textarea').focus();
+}
+function saveNote(textarea){if(textarea.value.trim())showToast('Nota salva!');}
+function deleteNote(btn){btn.closest('.note-card').remove();}
+
+function openSettings(){document.getElementById('settingsModal').classList.add('active');}
+function closeSettings(){document.getElementById('settingsModal').classList.remove('active');}
+document.getElementById('settingsModal').addEventListener('click',function(e){if(e.target===this)closeSettings();});
+
+function setTheme(theme){
+document.body.setAttribute('data-theme',theme);
+document.querySelectorAll('.theme-option').forEach(el=>el.classList.remove('active'));
+document.querySelector('.theme-option[data-theme="'+theme+'"]').classList.add('active');
+localStorage.setItem('escritorium-theme',theme);
+showToast('Tema: '+theme.replace('-',' '));
+}
+const savedTheme=localStorage.getItem('escritorium-theme')||'coffee';
+document.body.setAttribute('data-theme',savedTheme);
+document.querySelectorAll('.theme-option').forEach(el=>{if(el.getAttribute('data-theme')===savedTheme)el.classList.add('active');});
+
+function loadWallpaper(input){
+const file=input.files[0];
+if(!file)return;
+const reader=new FileReader();
+reader.onload=function(e){
+const img=document.getElementById('wallpaperImg');
+img.src=e.target.result;
+img.style.display='block';
+localStorage.setItem('escritorium-wallpaper',e.target.result);
+showToast('Wallpaper aplicado!');
+};
+reader.readAsDataURL(file);
+input.value='';
+}
+function removeWallpaper(){
+const img=document.getElementById('wallpaperImg');
+img.src='';img.style.display='none';
+localStorage.removeItem('escritorium-wallpaper');
+showToast('Wallpaper removido');
+}
+function setWallpaperBlur(value){
+document.documentElement.style.setProperty('--wallpaper-blur',value+'px');
+document.getElementById('wallpaperBlurValue').textContent=value+'px';
+localStorage.setItem('escritorium-wallpaper-blur',value);
+}
+function setEditorBlur(value){
+document.documentElement.style.setProperty('--editor-blur',value+'px');
+document.getElementById('editorBlurValue').textContent=value+'px';
+localStorage.setItem('escritorium-editor-blur',value);
+}
+function setEditorOpacity(value){
+document.documentElement.style.setProperty('--editor-opacity',value/100);
+document.getElementById('editorOpacityValue').textContent=value+'%';
+localStorage.setItem('escritorium-editor-opacity',value);
+}
+function toggleAdaptColors(){
+const toggle=document.getElementById('adaptToggle');
+toggle.classList.toggle('active');
+showToast(toggle.classList.contains('active')?'Cores adaptativas ativadas':'Cores adaptativas desativadas');
+}
+const savedWallpaper=localStorage.getItem('escritorium-wallpaper');
+if(savedWallpaper){document.getElementById('wallpaperImg').src=savedWallpaper;document.getElementById('wallpaperImg').style.display='block';}
+const savedWB=localStorage.getItem('escritorium-wallpaper-blur')||'0';
+document.getElementById('wallpaperBlurSlider').value=savedWB;setWallpaperBlur(savedWB);
+const savedEB=localStorage.getItem('escritorium-editor-blur')||'0';
+document.getElementById('editorBlurSlider').value=savedEB;setEditorBlur(savedEB);
+const savedEO=localStorage.getItem('escritorium-editor-opacity')||'70';
+document.getElementById('editorOpacitySlider').value=savedEO;setEditorOpacity(savedEO);
+
+function openProfile(){document.getElementById('profileModal').classList.add('active');}
+function closeProfile(){document.getElementById('profileModal').classList.remove('active');}
+document.getElementById('profileModal').addEventListener('click',function(e){if(e.target===this)closeProfile();});
+function loadProfileAvatar(input){
+const file=input.files[0];
+if(!file)return;
+const reader=new FileReader();
+reader.onload=function(e){
+document.getElementById('profileAvatarImg').src=e.target.result;
+document.getElementById('profileAvatarImg').style.display='block';
+document.getElementById('headerAvatarImg').src=e.target.result;
+document.getElementById('headerAvatarImg').style.display='block';
+document.getElementById('profileAvatarInitial').style.display='none';
+document.getElementById('headerAvatarInitial').style.display='none';
+localStorage.setItem('escritorium-avatar',e.target.result);
+showToast('Avatar atualizado!');
+};
+reader.readAsDataURL(file);
+input.value='';
+}
+function saveProfileName(){
+const name=document.getElementById('profileNameEdit').innerText;
+document.getElementById('profileNameDisplay').textContent=name;
+localStorage.setItem('escritorium-profile-name',name);
+}
+function saveProfileBio(){
+const bio=document.getElementById('profileBio').value;
+localStorage.setItem('escritorium-profile-bio',bio);
+}
+const savedAvatar=localStorage.getItem('escritorium-avatar');
+if(savedAvatar){
+document.getElementById('profileAvatarImg').src=savedAvatar;
+document.getElementById('profileAvatarImg').style.display='block';
+document.getElementById('headerAvatarImg').src=savedAvatar;
+document.getElementById('headerAvatarImg').style.display='block';
+document.getElementById('profileAvatarInitial').style.display='none';
+document.getElementById('headerAvatarInitial').style.display='none';
+}
+const savedName=localStorage.getItem('escritorium-profile-name');
+if(savedName){document.getElementById('profileNameEdit').textContent=savedName;document.getElementById('profileNameDisplay').textContent=savedName;}
+const savedBio=localStorage.getItem('escritorium-profile-bio');
+if(savedBio)document.getElementById('profileBio').value=savedBio;
+
+let pomodoroInterval;
+let pomodoroSeconds=25*60;
+let pomodoroRunning=false;
+let pomodoroMode='work';
+function updatePomodoroDisplay(){
+const m=Math.floor(pomodoroSeconds/60).toString().padStart(2,'0');
+const s=(pomodoroSeconds%60).toString().padStart(2,'0');
+document.getElementById('pomodoroTime').textContent=m+':'+s;
+}
+function startPomodoro(){
+if(pomodoroRunning)return;
+pomodoroRunning=true;
+document.getElementById('pomodoroStart').classList.add('active');
+document.getElementById('pomodoroStatus').textContent=pomodoroMode==='work'?'Foco! Escreva sem parar.':'Pausa ativa.';
+pomodoroInterval=setInterval(()=>{
+pomodoroSeconds--;
+updatePomodoroDisplay();
+if(pomodoroSeconds<=0){
+clearInterval(pomodoroInterval);
+pomodoroRunning=false;
+document.getElementById('pomodoroStart').classList.remove('active');
+document.getElementById('pomodoroStatus').textContent='Tempo encerrado!';
+showToast('Pomodoro finalizado!');
+if(pomodoroMode==='work'){pomodoroMode='short';pomodoroSeconds=5*60;document.getElementById('pomodoroStatus').textContent='Inicie uma pausa de 5 min';}
+else{pomodoroMode='work';pomodoroSeconds=25*60;document.getElementById('pomodoroStatus').textContent='Pronto para focar novamente';}
+updatePomodoroDisplay();
+}
+},1000);
+}
+function pausePomodoro(){
+clearInterval(pomodoroInterval);
+pomodoroRunning=false;
+document.getElementById('pomodoroStart').classList.remove('active');
+document.getElementById('pomodoroStatus').textContent='Pausado';
+}
+function resetPomodoro(){
+clearInterval(pomodoroInterval);
+pomodoroRunning=false;
+pomodoroMode='work';
+pomodoroSeconds=25*60;
+document.getElementById('pomodoroStart').classList.remove('active');
+document.getElementById('pomodoroStatus').textContent='Pronto para focar';
+updatePomodoroDisplay();
+}
+
+let currentMusic=0;
+const musicList=['Mozart: Concerto nº 21','Beethoven: Moonlight Sonata','Bach: Goldberg Variations','Chopin: Nocturne Op. 9','Vivaldi: Four Seasons'];
+function toggleSound(type){
+const toggle=type==='nature'?document.getElementById('natureToggle'):document.getElementById('rainToggle');
+const audio=type==='nature'?document.getElementById('natureAudio'):document.getElementById('rainAudio');
+toggle.classList.toggle('active');
+if(toggle.classList.contains('active')){
+audio.volume=document.getElementById('volumeSlider').value/100;
+audio.play().catch(e=>showToast('Clique novamente para ativar o áudio'));
+}else{audio.pause();}
+}
+let isPlaying=false;
+function toggleMusic(){
+const audio=document.getElementById('musicAudio');
+const btn=document.getElementById('playBtn');
+isPlaying=!isPlaying;
+if(isPlaying){
+audio.volume=document.getElementById('volumeSlider').value/100;
+audio.play().catch(e=>{isPlaying=false;showToast('Clique novamente para ativar a música');});
+btn.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
+}else{
+audio.pause();
+btn.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+}
+}
+function nextMusic(){
+currentMusic=(currentMusic+1)%musicList.length;
+document.getElementById('musicTitle').textContent=musicList[currentMusic];
+showToast('Próxima: '+musicList[currentMusic]);
+}
+function prevMusic(){
+currentMusic=(currentMusic-1+musicList.length)%musicList.length;
+document.getElementById('musicTitle').textContent=musicList[currentMusic];
+showToast('Anterior: '+musicList[currentMusic]);
+}
+function setVolume(value){
+document.getElementById('natureAudio').volume=value/100;
+document.getElementById('rainAudio').volume=value/100;
+document.getElementById('musicAudio').volume=value/100;
+}
+
+function toggleDropdown(id){document.getElementById(id).classList.toggle('active');}
+document.addEventListener('click',function(e){if(!e.target.closest('.dropdown')){document.querySelectorAll('.dropdown').forEach(d=>d.classList.remove('active'));}});
+function exportPDF(){
+const title=document.getElementById('docTitle').value||'Documento';
+const element=document.querySelector('.main-content');
+const clone=element.cloneNode(true);
+clone.querySelector('.editor-header').style.display='none';
+clone.querySelector('.editor-toolbar').style.display='none';
+const opt={margin:[.5,.5,.5,.5],filename:title+'.pdf',image:{type:'jpeg',quality:.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:'in',format:'letter',orientation:'portrait'}};
+showToast('Gerando PDF...');
+html2pdf().set(opt).from(clone).save().then(()=>showToast('PDF baixado!')).catch(()=>showToast('Erro ao gerar PDF'));
+}
+function exportWord(){
+const title=document.getElementById('docTitle').value||'Documento';
+const content=document.getElementById('editorText').innerHTML;
+const html='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>'+title+'</title></head><body style="font-family:Georgia,serif;line-height:1.6;"><h1 style="font-family:Georgia,serif;">'+title+'</h1><div style="font-size:12pt;">'+content+'</div></body></html>';
+const blob=new Blob(['\ufeff',html],{type:'application/msword'});
+if(typeof saveAs!=='undefined'){saveAs(blob,title+'.doc');showToast('Word baixado!');}
+else{const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=title+'.doc';document.body.appendChild(link);link.click();document.body.removeChild(link);showToast('Word baixado!');}
+}
+
+function showToast(message){
+const existing=document.querySelector('.toast-notification');
+if(existing)existing.remove();
+const toast=document.createElement('div');
+toast.className='toast-notification';
+toast.style.cssText='position:fixed;bottom:2rem;right:2rem;background:var(--sidebar-bg);color:var(--sidebar-text);padding:.75rem 1.25rem;border-radius:8px;font-size:.85rem;z-index:9999;animation:slideIn .3s ease;box-shadow:0 4px 12px rgba(0,0,0,.3);';
+toast.textContent=message;
+document.body.appendChild(toast);
+setTimeout(()=>{toast.style.opacity='0';toast.style.transition='opacity .3s';setTimeout(()=>toast.remove(),300);},2500);
+}
+document.addEventListener('keydown',function(e){if(e.ctrlKey&&e.key==='s'){e.preventDefault();showToast('Documento salvo automaticamente!');}});
+
+// ===== BACKHISTORY FUNCTIONS =====
+function toggleBhCategory(header){
+const cat=header.closest('.bh-category');
+cat.classList.toggle('expanded');
+}
+
+function editBhItem(item){
+const span=item.querySelector('span');
+const currentText=span.textContent;
+const input=document.createElement('input');
+input.type='text';
+input.value=currentText;
+input.className='bh-input';
+input.style.width='calc(100% - 30px)';
+input.onblur=function(){span.textContent=input.value;input.replaceWith(span);};
+input.onkeydown=function(e){if(e.key==='Enter'){input.blur();}};
+span.replaceWith(input);
+input.focus();
+}
+
+function deleteBhItem(btn){
+btn.closest('.bh-item').remove();
+showToast('Elemento removido');
+}
+
+function toggleBhAddMenu(){
+const menu=document.getElementById('bhAddMenu');
+menu.classList.toggle('show');
+document.getElementById('bhAddCategoryForm').style.display='none';
+document.getElementById('bhAddItemForm').style.display='none';
+}
+
+function showBhAddCategory(){
+document.getElementById('bhAddMenu').classList.remove('show');
+document.getElementById('bhAddCategoryForm').style.display='block';
+document.getElementById('bhNewCatInput').focus();
+}
+
+function showBhAddItem(){
+document.getElementById('bhAddMenu').classList.remove('show');
+const select=document.getElementById('bhItemCatSelect');
+select.innerHTML='<option value="">Escolha a categoria...</option>';
+document.querySelectorAll('.bh-category').forEach(cat=>{
+const catName=cat.querySelector('.bh-category-header span').textContent;
+const catId=cat.getAttribute('data-cat');
+select.innerHTML+='<option value="'+catId+'">'+catName+'</option>';
+});
+document.getElementById('bhAddItemForm').style.display='block';
+document.getElementById('bhNewItemInput').focus();
+}
+
+function confirmBhAddCategory(){
+const input=document.getElementById('bhNewCatInput');
+const name=input.value.trim();
+if(!name){showToast('Digite um nome para a categoria');return;}
+const container=document.getElementById('backhistoryContainer');
+const catId='cat-'+Date.now();
+const catDiv=document.createElement('div');
+catDiv.className='bh-category';
+catDiv.setAttribute('data-cat',catId);
+catDiv.innerHTML='<div class="bh-category-header" onclick="toggleBhCategory(this)"><div class="bh-category-left"><svg class="bh-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg><span>📁 '+name+'</span></div></div><div class="bh-items"></div>';
+container.appendChild(catDiv);
+input.value='';
+document.getElementById('bhAddCategoryForm').style.display='none';
+showToast('Categoria "'+name+'" criada!');
+}
+
+function confirmBhAddItem(){
+const select=document.getElementById('bhItemCatSelect');
+const input=document.getElementById('bhNewItemInput');
+const catId=select.value;
+const name=input.value.trim();
+if(!catId){showToast('Escolha uma categoria');return;}
+if(!name){showToast('Digite um nome para o elemento');return;}
+const cat=document.querySelector('.bh-category[data-cat="'+catId+'"]');
+if(!cat){showToast('Categoria não encontrada');return;}
+const itemsDiv=cat.querySelector('.bh-items');
+const itemDiv=document.createElement('div');
+itemDiv.className='bh-item';
+itemDiv.onclick=function(){editBhItem(this);};
+itemDiv.innerHTML='<span>📄 '+name+'</span><button class="bh-edit" onclick="event.stopPropagation();deleteBhItem(this)">✕</button>';
+itemsDiv.appendChild(itemDiv);
+cat.classList.add('expanded');
+input.value='';
+select.value='';
+document.getElementById('bhAddItemForm').style.display='none';
+showToast('Elemento "'+name+'" adicionado!');
+}
+
+function cancelBhAdd(){
+document.getElementById('bhAddCategoryForm').style.display='none';
+document.getElementById('bhAddItemForm').style.display='none';
+document.getElementById('bhAddMenu').classList.remove('show');
+}
+
+
+// ===== TOOLBAR + : SET COLOR & PIN IMG =====
+const colorPalette = [
+  '#e74c3c','#f39c12','#f1c40f','#2ecc71','#1abc9c','#3498db',
+  '#9b59b6','#e91e63','#00bcd4','#ff9800','#4caf50','#8bc34a',
+  '#cddc39','#ffeb3b','#ffc107','#ff5722','#795548','#607d8b',
+  '#d4af37','#c0392b','#8e44ad','#2980b9','#27ae60','#d35400'
+];
+
+function toggleToolbarPlusMenu(btn){
+  const menu = document.getElementById('toolbarPlusMenu');
+  menu.classList.toggle('show');
+  // Fechar color picker se estiver aberto
+  document.getElementById('colorPickerDropdown').classList.remove('show');
+}
+
+function openColorPicker(){
+  const dropdown = document.getElementById('colorPickerDropdown');
+  const palette = document.getElementById('colorPalette');
+  if(palette.children.length === 0){
+    colorPalette.forEach(c => {
+      const swatch = document.createElement('div');
+      swatch.className = 'color-swatch';
+      swatch.style.background = c;
+      swatch.onclick = function(){ applyColorToSelection(c); };
+      palette.appendChild(swatch);
+    });
+  }
+  dropdown.classList.add('show');
+  document.getElementById('toolbarPlusMenu').classList.remove('show');
+}
+
+function closeColorPicker(){
+  document.getElementById('colorPickerDropdown').classList.remove('show');
+}
+
+function applyColorToSelection(color){
+  const sel = window.getSelection();
+  if(!sel.rangeCount) return;
+  const range = sel.getRangeAt(0);
+  if(range.collapsed) return;
+
+  const span = document.createElement('span');
+  span.style.color = color;
+  try {
+    range.surroundContents(span);
+  } catch(e) {
+    // Se a seleção cruza nós, usar outra abordagem
+    const contents = range.extractContents();
+    span.appendChild(contents);
+    range.insertNode(span);
+  }
+  sel.removeAllRanges();
+  updateStats();
+  showToast('Cor aplicada!');
+}
+
+function pinImage(){
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = function(){
+    const file = input.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e){
+      const img = document.createElement('img');
+      img.src = e.target.result;
+      img.className = 'inline-img';
+      img.style.maxWidth = '100%';
+      img.style.borderRadius = '8px';
+      img.style.margin = '.5rem 0';
+      img.style.display = 'block';
+
+      const editor = document.getElementById('editorText');
+      editor.focus();
+      const sel = window.getSelection();
+      if(sel.rangeCount){
+        const range = sel.getRangeAt(0);
+        range.deleteContents();
+        range.insertNode(img);
+        range.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      } else {
+        editor.appendChild(img);
+      }
+      showToast('Imagem inserida!');
+      updateStats();
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
+  document.getElementById('toolbarPlusMenu').classList.remove('show');
+}
+
+// Fechar menus ao clicar fora
+document.addEventListener('click', function(e){
+  if(!e.target.closest('.toolbar-plus-menu') && !e.target.closest('[onclick*="toggleToolbarPlusMenu"]') && !e.target.closest('.color-picker-dropdown')){
+    document.getElementById('toolbarPlusMenu').classList.remove('show');
+    document.getElementById('colorPickerDropdown').classList.remove('show');
+  }
+  if(!e.target.closest('.footer-menu') && !e.target.closest('#footerPlusBtn')){
+    document.getElementById('footerMenu').classList.remove('show');
+  }
+});
+
+
+// ===== RODAPÉ EXPANSÍVEL =====
+let activeFooterWidget = null;
+
+function toggleFooterMenu(){
+  const menu = document.getElementById('footerMenu');
+  menu.classList.toggle('show');
+}
+
+function activateFooterWidget(type){
+  const center = document.getElementById('footerCenter');
+  const menu = document.getElementById('footerMenu');
+  menu.classList.remove('show');
+
+  // Limpar widgets ativos
+  center.innerHTML = '';
+  activeFooterWidget = type;
+
+  const widget = document.createElement('div');
+  widget.className = 'footer-widget active';
+  widget.id = 'footerWidget_' + type;
+
+  if(type === 'share'){
+    widget.innerHTML = '<span>📤 Compartilhar nota</span><button class="footer-widget-close" onclick="closeFooterWidget()">✕</button>';
+    widget.onclick = function(e){ if(e.target.tagName !== 'BUTTON') shareNote(); };
+  }
+  else if(type === 'export'){
+    widget.innerHTML = '<span>📁 Exportar</span><button class="footer-widget-close" onclick="closeFooterWidget()">✕</button>';
+    const subMenu = document.createElement('div');
+    subMenu.style.cssText = 'position:absolute;bottom:calc(100% + .5rem);left:50%;transform:translateX(-50%);background:var(--bg-primary);border:1px solid var(--border);border-radius:10px;padding:.4rem;display:none;flex-direction:column;gap:.2rem;box-shadow:0 8px 24px var(--shadow);min-width:160px;z-index:300;';
+    subMenu.innerHTML = '<div class="footer-menu-item" onclick="exportPDF();hideExportSub()">📄 PDF</div><div class="footer-menu-item" onclick="exportWord();hideExportSub()">📝 Word</div><div class="footer-menu-item" onclick="exportText();hideExportSub()">📃 Texto</div>';
+    widget.appendChild(subMenu);
+    widget.onclick = function(e){ 
+      if(e.target.tagName !== 'BUTTON'){
+        subMenu.style.display = subMenu.style.display === 'flex' ? 'none' : 'flex';
+      }
+    };
+    widget.style.position = 'relative';
+  }
+  else if(type === 'pomodoro'){
+    widget.innerHTML = '<div class="footer-pomodoro" id="footerPomodoroDisplay">25:00</div><div class="footer-pomo-controls"><button class="footer-pomo-btn" id="footerPomoPlay" onclick="toggleFooterPomodoro()">▶️</button><button class="footer-pomo-btn" onclick="pausePomodoro();syncFooterPomodoro()">⏸️</button><button class="footer-pomo-btn" onclick="resetPomodoro();syncFooterPomodoro()">🔄</button></div><button class="footer-widget-close" onclick="closeFooterWidget()">✕</button>';
+    syncFooterPomodoro();
+  }
+  else if(type === 'chars'){
+    const text = document.getElementById('editorText').innerText || '';
+    const chars = text.length;
+    const words = text.trim().split(/\s+/).filter(w=>w.length>0).length;
+    widget.innerHTML = '<span class="footer-char-count">📊 ' + chars + ' caracteres | ' + words + ' palavras</span><button class="footer-widget-close" onclick="closeFooterWidget()">✕</button>';
+    // Atualizar em tempo real
+    widget.dataset.autoUpdate = 'true';
+  }
+
+  center.appendChild(widget);
+
+  // Adicionar outro + ao lado
+  const plus2 = document.createElement('button');
+  plus2.className = 'footer-plus-btn';
+  plus2.textContent = '+';
+  plus2.style.width = '28px'; plus2.style.height = '28px'; plus2.style.fontSize = '1rem';
+  plus2.onclick = toggleFooterMenu;
+  center.appendChild(plus2);
+}
+
+function hideExportSub(){
+  const sub = document.querySelector('#footerWidget_export > div[style*="position:absolute"]');
+  if(sub) sub.style.display = 'none';
+}
+
+function closeFooterWidget(){
+  document.getElementById('footerCenter').innerHTML = '';
+  activeFooterWidget = null;
+}
+
+function shareNote(){
+  const title = document.getElementById('docTitle').value || 'Nota Escritorium';
+  const text = document.getElementById('editorText').innerText || '';
+  if(navigator.share){
+    navigator.share({title: title, text: text.substring(0, 500)}).catch(()=>{});
+  } else {
+    navigator.clipboard.writeText(title + '\n\n' + text).then(()=>showToast('Nota copiada para a área de transferência!'));
+  }
+}
+
+function exportText(){
+  const title = document.getElementById('docTitle').value || 'Documento';
+  const text = document.getElementById('editorText').innerText || '';
+  const blob = new Blob([text], {type: 'text/plain;charset=utf-8'});
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = title + '.txt';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  showToast('Texto baixado!');
+}
+
+// ===== POMODORO SYNC COM RODAPÉ =====
+const originalUpdatePomodoroDisplay = updatePomodoroDisplay;
+updatePomodoroDisplay = function(){
+  originalUpdatePomodoroDisplay();
+  syncFooterPomodoro();
+};
+
+function syncFooterPomodoro(){
+  const footerDisp = document.getElementById('footerPomodoroDisplay');
+  if(!footerDisp) return;
+  const m = Math.floor(pomodoroSeconds/60).toString().padStart(2,'0');
+  const s = (pomodoroSeconds%60).toString().padStart(2,'0');
+  footerDisp.textContent = m + ':' + s;
+  const playBtn = document.getElementById('footerPomoPlay');
+  if(playBtn) playBtn.textContent = pomodoroRunning ? '⏸️' : '▶️';
+}
+
+function toggleFooterPomodoro(){
+  if(pomodoroRunning){
+    pausePomodoro();
+  } else {
+    startPomodoro();
+  }
+  syncFooterPomodoro();
+}
+
+// ===== CONFIGURAÇÕES: FONTE & CONTRASTE =====
+function setEditorFont(el){
+  const font = el.getAttribute('data-font');
+  document.getElementById('editorText').style.fontFamily = font;
+  document.getElementById('docTitle').style.fontFamily = font;
+  document.querySelectorAll('.font-option').forEach(o=>o.classList.remove('active'));
+  el.classList.add('active');
+  localStorage.setItem('escritorium-font', font);
+  showToast('Fonte alterada');
+}
+
+function setEditorContrast(el){
+  const contrast = el.getAttribute('data-contrast');
+  const editor = document.getElementById('editorText');
+  const title = document.getElementById('docTitle');
+  let color = '';
+  if(contrast === 'black') color = '#000000';
+  else if(contrast === 'white') color = '#ffffff';
+  else if(contrast === 'gray') color = '#888888';
+  editor.style.color = color;
+  title.style.color = color;
+  document.querySelectorAll('.contrast-option').forEach(o=>o.classList.remove('active'));
+  el.classList.add('active');
+  localStorage.setItem('escritorium-contrast', contrast);
+  showToast('Contraste: ' + contrast);
+}
+
+function setFontWeight(val){
+  document.getElementById('editorText').style.fontWeight = val;
+  document.getElementById('docTitle').style.fontWeight = (val >= 700 ? 700 : val);
+  document.getElementById('fontWeightValue').textContent = val;
+  localStorage.setItem('escritorium-font-weight', val);
+}
+
+// Restaurar preferências salvas
+const savedFont = localStorage.getItem('escritorium-font');
+if(savedFont){
+  document.getElementById('editorText').style.fontFamily = savedFont;
+  document.getElementById('docTitle').style.fontFamily = savedFont;
+  document.querySelectorAll('.font-option').forEach(o=>{
+    if(o.getAttribute('data-font') === savedFont) o.classList.add('active');
+  });
+}
+const savedContrast = localStorage.getItem('escritorium-contrast');
+if(savedContrast){
+  let color = '';
+  if(savedContrast === 'black') color = '#000000';
+  else if(savedContrast === 'white') color = '#ffffff';
+  else if(savedContrast === 'gray') color = '#888888';
+  document.getElementById('editorText').style.color = color;
+  document.getElementById('docTitle').style.color = color;
+  document.querySelectorAll('.contrast-option').forEach(o=>{
+    if(o.getAttribute('data-contrast') === savedContrast) o.classList.add('active');
+  });
+}
+const savedWeight = localStorage.getItem('escritorium-font-weight');
+if(savedWeight){
+  document.getElementById('fontWeightSlider').value = savedWeight;
+  setFontWeight(savedWeight);
+}
+
+// ===== ATUALIZAR CONTAGEM DE CARACTERES EM TEMPO REAL =====
+const originalUpdateStats2 = updateStats;
+updateStats = function(){
+  originalUpdateStats2();
+  if(activeFooterWidget === 'chars'){
+    const widget = document.getElementById('footerWidget_chars');
+    if(widget){
+      const text = document.getElementById('editorText').innerText || '';
+      const chars = text.length;
+      const words = text.trim().split(/\s+/).filter(w=>w.length>0).length;
+      widget.querySelector('.footer-char-count').textContent = '📊 ' + chars + ' caracteres | ' + words + ' palavras';
+    }
+  }
+};
+
+
+</script>
+</body>
+</html>
