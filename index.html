@@ -7,7 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js">
 
-// ===== TOOLBAR + : SET COLOR & PIN IMG =====
+
 const colorPalette = [
   '#e74c3c','#f39c12','#f1c40f','#2ecc71','#1abc9c','#3498db',
   '#9b59b6','#e91e63','#00bcd4','#ff9800','#4caf50','#8bc34a',
@@ -18,7 +18,7 @@ const colorPalette = [
 function toggleToolbarPlusMenu(btn){
   const menu = document.getElementById('toolbarPlusMenu');
   menu.classList.toggle('show');
-  // Fechar color picker se estiver aberto
+ 
   document.getElementById('colorPickerDropdown').classList.remove('show');
 }
 
@@ -53,7 +53,7 @@ function applyColorToSelection(color){
   try {
     range.surroundContents(span);
   } catch(e) {
-    // Se a seleção cruza nós, usar outra abordagem
+    
     const contents = range.extractContents();
     span.appendChild(contents);
     range.insertNode(span);
@@ -102,7 +102,7 @@ function pinImage(){
   document.getElementById('toolbarPlusMenu').classList.remove('show');
 }
 
-// Fechar menus ao clicar fora
+
 document.addEventListener('click', function(e){
   if(!e.target.closest('.toolbar-plus-menu') && !e.target.closest('[onclick*="toggleToolbarPlusMenu"]') && !e.target.closest('.color-picker-dropdown')){
     document.getElementById('toolbarPlusMenu').classList.remove('show');
@@ -114,7 +114,7 @@ document.addEventListener('click', function(e){
 });
 
 
-// ===== RODAPÉ EXPANSÍVEL =====
+
 let activeFooterWidget = null;
 
 function toggleFooterMenu(){
@@ -127,7 +127,7 @@ function activateFooterWidget(type){
   const menu = document.getElementById('footerMenu');
   menu.classList.remove('show');
 
-  // Limpar widgets ativos
+  
   center.innerHTML = '';
   activeFooterWidget = type;
 
@@ -161,13 +161,13 @@ function activateFooterWidget(type){
     const chars = text.length;
     const words = text.trim().split(/\s+/).filter(w=>w.length>0).length;
     widget.innerHTML = '<span class="footer-char-count">📊 ' + chars + ' caracteres | ' + words + ' palavras</span><button class="footer-widget-close" onclick="closeFooterWidget()">✕</button>';
-    // Atualizar em tempo real
+    
     widget.dataset.autoUpdate = 'true';
   }
 
   center.appendChild(widget);
 
-  // Adicionar outro + ao lado
+  
   const plus2 = document.createElement('button');
   plus2.className = 'footer-plus-btn';
   plus2.textContent = '+';
@@ -209,7 +209,7 @@ function exportText(){
   showToast('Texto baixado!');
 }
 
-// ===== POMODORO SYNC COM RODAPÉ =====
+
 const originalUpdatePomodoroDisplay = updatePomodoroDisplay;
 updatePomodoroDisplay = function(){
   originalUpdatePomodoroDisplay();
@@ -235,7 +235,7 @@ function toggleFooterPomodoro(){
   syncFooterPomodoro();
 }
 
-// ===== CONFIGURAÇÕES: FONTE & CONTRASTE =====
+
 function setEditorFont(el){
   const font = el.getAttribute('data-font');
   document.getElementById('editorText').style.fontFamily = font;
@@ -269,7 +269,7 @@ function setFontWeight(val){
   localStorage.setItem('escritorium-font-weight', val);
 }
 
-// Restaurar preferências salvas
+
 const savedFont = localStorage.getItem('escritorium-font');
 if(savedFont){
   document.getElementById('editorText').style.fontFamily = savedFont;
@@ -296,7 +296,7 @@ if(savedWeight){
   setFontWeight(savedWeight);
 }
 
-// ===== ATUALIZAR CONTAGEM DE CARACTERES EM TEMPO REAL =====
+
 const originalUpdateStats2 = updateStats;
 updateStats = function(){
   originalUpdateStats2();
@@ -315,7 +315,7 @@ updateStats = function(){
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js">
 
-// ===== TOOLBAR + : SET COLOR & PIN IMG =====
+
 const colorPalette = [
   '#e74c3c','#f39c12','#f1c40f','#2ecc71','#1abc9c','#3498db',
   '#9b59b6','#e91e63','#00bcd4','#ff9800','#4caf50','#8bc34a',
@@ -326,7 +326,7 @@ const colorPalette = [
 function toggleToolbarPlusMenu(btn){
   const menu = document.getElementById('toolbarPlusMenu');
   menu.classList.toggle('show');
-  // Fechar color picker se estiver aberto
+  
   document.getElementById('colorPickerDropdown').classList.remove('show');
 }
 
@@ -361,7 +361,7 @@ function applyColorToSelection(color){
   try {
     range.surroundContents(span);
   } catch(e) {
-    // Se a seleção cruza nós, usar outra abordagem
+    
     const contents = range.extractContents();
     span.appendChild(contents);
     range.insertNode(span);
@@ -410,7 +410,7 @@ function pinImage(){
   document.getElementById('toolbarPlusMenu').classList.remove('show');
 }
 
-// Fechar menus ao clicar fora
+
 document.addEventListener('click', function(e){
   if(!e.target.closest('.toolbar-plus-menu') && !e.target.closest('[onclick*="toggleToolbarPlusMenu"]') && !e.target.closest('.color-picker-dropdown')){
     document.getElementById('toolbarPlusMenu').classList.remove('show');
@@ -422,7 +422,7 @@ document.addEventListener('click', function(e){
 });
 
 
-// ===== RODAPÉ EXPANSÍVEL =====
+
 let activeFooterWidget = null;
 
 function toggleFooterMenu(){
@@ -435,7 +435,7 @@ function activateFooterWidget(type){
   const menu = document.getElementById('footerMenu');
   menu.classList.remove('show');
 
-  // Limpar widgets ativos
+  
   center.innerHTML = '';
   activeFooterWidget = type;
 
@@ -469,13 +469,13 @@ function activateFooterWidget(type){
     const chars = text.length;
     const words = text.trim().split(/\s+/).filter(w=>w.length>0).length;
     widget.innerHTML = '<span class="footer-char-count">📊 ' + chars + ' caracteres | ' + words + ' palavras</span><button class="footer-widget-close" onclick="closeFooterWidget()">✕</button>';
-    // Atualizar em tempo real
+    
     widget.dataset.autoUpdate = 'true';
   }
 
   center.appendChild(widget);
 
-  // Adicionar outro + ao lado
+  
   const plus2 = document.createElement('button');
   plus2.className = 'footer-plus-btn';
   plus2.textContent = '+';
@@ -517,7 +517,7 @@ function exportText(){
   showToast('Texto baixado!');
 }
 
-// ===== POMODORO SYNC COM RODAPÉ =====
+
 const originalUpdatePomodoroDisplay = updatePomodoroDisplay;
 updatePomodoroDisplay = function(){
   originalUpdatePomodoroDisplay();
@@ -543,7 +543,7 @@ function toggleFooterPomodoro(){
   syncFooterPomodoro();
 }
 
-// ===== CONFIGURAÇÕES: FONTE & CONTRASTE =====
+
 function setEditorFont(el){
   const font = el.getAttribute('data-font');
   document.getElementById('editorText').style.fontFamily = font;
@@ -577,7 +577,7 @@ function setFontWeight(val){
   localStorage.setItem('escritorium-font-weight', val);
 }
 
-// Restaurar preferências salvas
+
 const savedFont = localStorage.getItem('escritorium-font');
 if(savedFont){
   document.getElementById('editorText').style.fontFamily = savedFont;
@@ -604,7 +604,7 @@ if(savedWeight){
   setFontWeight(savedWeight);
 }
 
-// ===== ATUALIZAR CONTAGEM DE CARACTERES EM TEMPO REAL =====
+
 const originalUpdateStats2 = updateStats;
 updateStats = function(){
   originalUpdateStats2();
@@ -818,9 +818,9 @@ body{font-family:'Inter',sans-serif;background:var(--bg-primary);color:var(--tex
 .pomodoro-status{font-size:.8rem;color:var(--text-secondary)}
 @media(max-width:1024px){.app-layout{grid-template-columns:1fr !important}.sidebar{display:none}}
 
-/* === NOVOS ESTILOS: CONTRASTE, FONTES, TOOLBAR +, RODAPÉ === */
 
-/* Seletor de cores */
+
+
 .color-picker-dropdown{
   position:absolute;
   bottom:100%;
@@ -874,7 +874,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg-primary);color:var(--tex
 }
 .color-done-btn:hover{opacity:.85;}
 
-/* Toolbar + menu */
+
 .toolbar-plus-menu{
   position:absolute;
   bottom:100%;
@@ -904,7 +904,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg-primary);color:var(--tex
 }
 .toolbar-plus-item:hover{background:var(--bg-secondary);}
 
-/* Rodapé novo */
+
 .main-footer{
   background:var(--sidebar-bg);
   color:var(--sidebar-text);
@@ -995,7 +995,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg-primary);color:var(--tex
 .footer-pomo-btn:hover{background:rgba(255,255,255,.1);}
 .footer-char-count{font-size:.85rem;opacity:.9;}
 
-/* Settings - Fonte e Contraste */
+
 .font-options{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;}
 .font-option{padding:.6rem;border:2px solid var(--border);border-radius:8px;cursor:pointer;text-align:center;transition:all .2s;font-size:.85rem;}
 .font-option:hover{border-color:var(--accent);}
@@ -1006,7 +1006,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg-primary);color:var(--tex
 .contrast-option.active{border-color:var(--accent);background:var(--bg-secondary);}
 .intensity-slider{width:100%;margin-top:.5rem;}
 
-/* Imagem inline no editor */
+
 .editor-text img.inline-img{max-width:100%;border-radius:8px;margin:.5rem 0;display:block;}
 
 </style>
@@ -1364,7 +1364,7 @@ Adicionar
 </div>
 </div>
 
-<!-- Profile Modal -->
+
 <div class="modal-overlay" id="profileModal">
 <div class="modal">
 <div class="modal-header">
@@ -1849,7 +1849,7 @@ document.getElementById('bhAddMenu').classList.remove('show');
 }
 
 
-// ===== TOOLBAR + : SET COLOR & PIN IMG =====
+
 const colorPalette = [
   '#e74c3c','#f39c12','#f1c40f','#2ecc71','#1abc9c','#3498db',
   '#9b59b6','#e91e63','#00bcd4','#ff9800','#4caf50','#8bc34a',
@@ -1860,7 +1860,7 @@ const colorPalette = [
 function toggleToolbarPlusMenu(btn){
   const menu = document.getElementById('toolbarPlusMenu');
   menu.classList.toggle('show');
-  // Fechar color picker se estiver aberto
+  
   document.getElementById('colorPickerDropdown').classList.remove('show');
 }
 
@@ -1944,7 +1944,7 @@ function pinImage(){
   document.getElementById('toolbarPlusMenu').classList.remove('show');
 }
 
-// Fechar menus ao clicar fora
+
 document.addEventListener('click', function(e){
   if(!e.target.closest('.toolbar-plus-menu') && !e.target.closest('[onclick*="toggleToolbarPlusMenu"]') && !e.target.closest('.color-picker-dropdown')){
     document.getElementById('toolbarPlusMenu').classList.remove('show');
@@ -1956,7 +1956,7 @@ document.addEventListener('click', function(e){
 });
 
 
-// ===== RODAPÉ EXPANSÍVEL =====
+
 let activeFooterWidget = null;
 
 function toggleFooterMenu(){
@@ -2003,13 +2003,13 @@ function activateFooterWidget(type){
     const chars = text.length;
     const words = text.trim().split(/\s+/).filter(w=>w.length>0).length;
     widget.innerHTML = '<span class="footer-char-count">📊 ' + chars + ' caracteres | ' + words + ' palavras</span><button class="footer-widget-close" onclick="closeFooterWidget()">✕</button>';
-    // Atualizar em tempo real
+    
     widget.dataset.autoUpdate = 'true';
   }
 
   center.appendChild(widget);
 
-  // Adicionar outro + ao lado
+  
   const plus2 = document.createElement('button');
   plus2.className = 'footer-plus-btn';
   plus2.textContent = '+';
@@ -2051,7 +2051,7 @@ function exportText(){
   showToast('Texto baixado!');
 }
 
-// ===== POMODORO SYNC COM RODAPÉ =====
+
 const originalUpdatePomodoroDisplay = updatePomodoroDisplay;
 updatePomodoroDisplay = function(){
   originalUpdatePomodoroDisplay();
@@ -2077,7 +2077,7 @@ function toggleFooterPomodoro(){
   syncFooterPomodoro();
 }
 
-// ===== CONFIGURAÇÕES: FONTE & CONTRASTE =====
+
 function setEditorFont(el){
   const font = el.getAttribute('data-font');
   document.getElementById('editorText').style.fontFamily = font;
@@ -2111,7 +2111,7 @@ function setFontWeight(val){
   localStorage.setItem('escritorium-font-weight', val);
 }
 
-// Restaurar preferências salvas
+
 const savedFont = localStorage.getItem('escritorium-font');
 if(savedFont){
   document.getElementById('editorText').style.fontFamily = savedFont;
@@ -2138,7 +2138,7 @@ if(savedWeight){
   setFontWeight(savedWeight);
 }
 
-// ===== ATUALIZAR CONTAGEM DE CARACTERES EM TEMPO REAL =====
+
 const originalUpdateStats2 = updateStats;
 updateStats = function(){
   originalUpdateStats2();
