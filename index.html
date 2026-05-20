@@ -107,7 +107,11 @@ body{font-family:'Inter',sans-serif;background:var(--bg-primary);color:var(--tex
 .sidebar.collapsed .sidebar-title span{opacity:0;width:0;overflow:hidden}
 .collapse-btn{background:none;border:none;color:var(--sidebar-text);cursor:pointer;padding:.25rem;opacity:.6;transition:opacity .2s;flex-shrink:0}
 .collapse-btn:hover{opacity:1}
-.sidebar-content{display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden;opacity:1;transition:opacity .3s ease,padding .3s ease;flex:1;min-height:0;padding:.75rem .75rem 1.25rem}
+.sidebar-content{display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden;opacity:1;transition:opacity .3s ease,padding .3s ease;flex:1;min-height:0;padding:.75rem .75rem 1.25rem;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.3) transparent}
+.sidebar-content::-webkit-scrollbar{width:6px}
+.sidebar-content::-webkit-scrollbar-track{background:transparent;margin:4px 0}
+.sidebar-content::-webkit-scrollbar-thumb{background:rgba(255,255,255,.2);border-radius:3px}
+.sidebar-content::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.4)}
 .sidebar.collapsed .sidebar-content{opacity:0;padding:0;pointer-events:none;height:0;overflow:hidden}
 .sidebar-content::-webkit-scrollbar{width:4px}
 .sidebar-content::-webkit-scrollbar-track{background:transparent}
@@ -554,7 +558,97 @@ body{font-family:'Inter',sans-serif;background:var(--bg-primary);color:var(--tex
   flex-shrink: 0;
 }
 
+
+/* ===== BOTÃO DE ADICIONAR SUBCATEGORIA ===== */
+.bh-category-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .6rem .75rem;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all .2s;
+  user-select: none;
+}
+.bh-category-left {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  font-size: .85rem;
+  font-weight: 500;
+}
+.bh-add-subcat-btn {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,.5);
+  cursor: pointer;
+  padding: .2rem .4rem;
+  font-size: 1rem;
+  border-radius: 4px;
+  transition: all .2s;
+  margin-left: .5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+.bh-add-subcat-btn:hover {
+  color: var(--accent-light);
+  background: rgba(255,255,255,.1);
+}
+.bh-category-header:hover .bh-add-subcat-btn {
+  color: rgba(255,255,255,.8);
+}
+
+
+/* ===== CORREÇÃO SIDEBAR DIREITO - NOTAS ===== */
+#rightSidebar {
+  height: 100%;
+  min-height: 0;
+}
+
+#rightSidebar .sidebar-content {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+#rightSidebar .right-tabs {
+  flex-shrink: 0;
+}
+
+#rightSidebar .right-tab-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+#rightSidebar .right-tab-content.active {
+  display: flex;
+}
+
+#notesList {
+  max-height: none;
+  flex: 1;
+  overflow-y: auto;
+}
+
+#ideasList {
+  max-height: none;
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* Garantir que o app-layout não deixe o sidebar vazar */
+.app-layout {
+  align-items: stretch;
+}
 </style>
+<base target="_blank">
+<base target="_blank">
 <base target="_blank">
 <base target="_blank">
 <base target="_blank">
@@ -697,7 +791,7 @@ Novo Projeto
 <div class="accordion-content" id="accordion-backhistory">
 <div class="backhistory-container" id="backhistoryContainer">
 <div class="bh-category expanded" data-cat="personagens">
-<div class="bh-category-header" onclick="toggleBhCategory(this)"><div class="bh-category-left"><svg class="bh-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg><span>👤 Personagens</span></div></div>
+<div class="bh-category-header" onclick="toggleBhCategory(this)"><div class="bh-category-left"><svg class="bh-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg><span>👤 Personagens</span></div><button class="bh-add-subcat-btn" onclick="event.stopPropagation();addSubcategory(this)" title="Adicionar subcategoria">+</button></div>
 <div class="bh-items">
 <div class="bh-item" onclick="editBhItem(this)"><span>🧝‍♀️ Clara - Protagonista</span><button class="bh-edit" onclick="event.stopPropagation();deleteBhItem(this)">✕</button></div>
 <div class="bh-item" onclick="editBhItem(this)"><span>🦅 O Corvo - Vilão</span><button class="bh-edit" onclick="event.stopPropagation();deleteBhItem(this)">✕</button></div>
@@ -705,14 +799,14 @@ Novo Projeto
 </div>
 </div>
 <div class="bh-category" data-cat="locais">
-<div class="bh-category-header" onclick="toggleBhCategory(this)"><div class="bh-category-left"><svg class="bh-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg><span>🌍 Locais</span></div></div>
+<div class="bh-category-header" onclick="toggleBhCategory(this)"><div class="bh-category-left"><svg class="bh-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg><span>🌍 Locais</span></div><button class="bh-add-subcat-btn" onclick="event.stopPropagation();addSubcategory(this)" title="Adicionar subcategoria">+</button></div>
 <div class="bh-items">
 <div class="bh-item" onclick="editBhItem(this)"><span>🌲 Floresta de Eldoria</span><button class="bh-edit" onclick="event.stopPropagation();deleteBhItem(this)">✕</button></div>
 <div class="bh-item" onclick="editBhItem(this)"><span>🏰 Castelo das Sombras</span><button class="bh-edit" onclick="event.stopPropagation();deleteBhItem(this)">✕</button></div>
 </div>
 </div>
 <div class="bh-category" data-cat="cultura">
-<div class="bh-category-header" onclick="toggleBhCategory(this)"><div class="bh-category-left"><svg class="bh-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg><span>📜 Cultura</span></div></div>
+<div class="bh-category-header" onclick="toggleBhCategory(this)"><div class="bh-category-left"><svg class="bh-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg><span>📜 Cultura</span></div><button class="bh-add-subcat-btn" onclick="event.stopPropagation();addSubcategory(this)" title="Adicionar subcategoria">+</button></div>
 <div class="bh-items">
 <div class="bh-item" onclick="editBhItem(this)"><span>🍷 Vinho de Sangue de Dragão</span><button class="bh-edit" onclick="event.stopPropagation();deleteBhItem(this)">✕</button></div>
 <div class="bh-item" onclick="editBhItem(this)"><span>🎭 Festival das Máscaras</span><button class="bh-edit" onclick="event.stopPropagation();deleteBhItem(this)">✕</button></div>
@@ -720,7 +814,7 @@ Novo Projeto
 </div>
 </div>
 <div class="bh-category" data-cat="magia">
-<div class="bh-category-header" onclick="toggleBhCategory(this)"><div class="bh-category-left"><svg class="bh-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg><span>✨ Magia & Poderes</span></div></div>
+<div class="bh-category-header" onclick="toggleBhCategory(this)"><div class="bh-category-left"><svg class="bh-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg><span>✨ Magia & Poderes</span></div><button class="bh-add-subcat-btn" onclick="event.stopPropagation();addSubcategory(this)" title="Adicionar subcategoria">+</button></div>
 <div class="bh-items">
 <div class="bh-item" onclick="editBhItem(this)"><span>🔮 Visão do Futuro</span><button class="bh-edit" onclick="event.stopPropagation();deleteBhItem(this)">✕</button></div>
 <div class="bh-item" onclick="editBhItem(this)"><span>⚡ Raio de Eldoria</span><button class="bh-edit" onclick="event.stopPropagation();deleteBhItem(this)">✕</button></div>
@@ -759,11 +853,27 @@ Adicionar
 <span>METAS</span>
 </div>
 <div class="accordion-content" id="accordion-goals">
-<div class="projects-list">
-<div class="project-item">🎯 Capítulo 4 até sexta</div>
-<div class="project-item">🎯 50.000 palavras até dezembro</div>
-<div class="project-item">🎯 Revisar capítulo 2</div>
+<div class="projects-list" id="goals-list">
+<div class="project-item" draggable="true" ondragstart="dragGoal(event)" ondragover="allowDropGoal(event)" ondrop="dropGoal(event)">
+  <span>🎯</span>
+  <span contenteditable="true" class="goal-text" style="flex:1;outline:none;border:none;background:transparent;color:var(--sidebar-text);font-size:.85rem;" onblur="saveGoal(this)">Capítulo 4 até sexta</span>
+  <button class="project-delete" onclick="deleteGoal(this)" title="Excluir">✕</button>
 </div>
+<div class="project-item" draggable="true" ondragstart="dragGoal(event)" ondragover="allowDropGoal(event)" ondrop="dropGoal(event)">
+  <span>🎯</span>
+  <span contenteditable="true" class="goal-text" style="flex:1;outline:none;border:none;background:transparent;color:var(--sidebar-text);font-size:.85rem;" onblur="saveGoal(this)">50.000 palavras até dezembro</span>
+  <button class="project-delete" onclick="deleteGoal(this)" title="Excluir">✕</button>
+</div>
+<div class="project-item" draggable="true" ondragstart="dragGoal(event)" ondragover="allowDropGoal(event)" ondrop="dropGoal(event)">
+  <span>🎯</span>
+  <span contenteditable="true" class="goal-text" style="flex:1;outline:none;border:none;background:transparent;color:var(--sidebar-text);font-size:.85rem;" onblur="saveGoal(this)">Revisar capítulo 2</span>
+  <button class="project-delete" onclick="deleteGoal(this)" title="Excluir">✕</button>
+</div>
+</div>
+<button class="add-project-btn" onclick="addGoal()">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+  Nova Meta
+</button>
 </div>
 
 <div class="menu-item" onclick="openSettings()">
@@ -1093,6 +1203,118 @@ Adicionar
 <audio id="musicAudio"><source src="https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=mozart-piano-concerto-21-2nd-movement-10137.mp3" type="audio/mpeg"></audio>
 
 <script>
+
+// ===== FUNÇÕES PARA METAS =====
+function addGoal() {
+  const goalsList = document.getElementById('goals-list');
+  const newGoal = document.createElement('div');
+  newGoal.className = 'project-item';
+  newGoal.draggable = true;
+  newGoal.ondragstart = function(e) { dragGoal(e); };
+  newGoal.ondragover = function(e) { allowDropGoal(e); };
+  newGoal.ondrop = function(e) { dropGoal(e); };
+  newGoal.innerHTML = `
+    <span>🎯</span>
+    <span contenteditable="true" class="goal-text" style="flex:1;outline:none;border:none;background:transparent;color:var(--sidebar-text);font-size:.85rem;" onblur="saveGoal(this)">Nova meta</span>
+    <button class="project-delete" onclick="deleteGoal(this)" title="Excluir">✕</button>
+  `;
+  goalsList.appendChild(newGoal);
+
+  // Focar no novo elemento
+  const textSpan = newGoal.querySelector('.goal-text');
+  textSpan.focus();
+
+  // Selecionar todo o texto
+  const range = document.createRange();
+  range.selectNodeContents(textSpan);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+function deleteGoal(btn) {
+  const item = btn.closest('.project-item');
+  if (item) {
+    item.remove();
+  }
+}
+
+function saveGoal(element) {
+  if (element.innerText.trim() === '') {
+    element.parentElement.remove();
+  }
+}
+
+// Drag and drop para metas
+let draggedGoal = null;
+
+function dragGoal(e) {
+  draggedGoal = e.target;
+  e.target.classList.add('dragging');
+}
+
+function allowDropGoal(e) {
+  e.preventDefault();
+}
+
+function dropGoal(e) {
+  e.preventDefault();
+  if (draggedGoal && e.target.closest('.project-item') && e.target.closest('.project-item') !== draggedGoal) {
+    const target = e.target.closest('.project-item');
+    const parent = target.parentElement;
+    const draggedIndex = Array.from(parent.children).indexOf(draggedGoal);
+    const targetIndex = Array.from(parent.children).indexOf(target);
+
+    if (draggedIndex < targetIndex) {
+      parent.insertBefore(draggedGoal, target.nextSibling);
+    } else {
+      parent.insertBefore(draggedGoal, target);
+    }
+  }
+  if (draggedGoal) {
+    draggedGoal.classList.remove('dragging');
+  }
+}
+
+
+
+// ===== FUNÇÃO PARA ADICIONAR SUBCATEGORIA =====
+function addSubcategory(btn) {
+  const category = btn.closest('.bh-category');
+  const itemsContainer = category.querySelector('.bh-items');
+
+  // Criar nova subcategoria em branco
+  const newItem = document.createElement('div');
+  newItem.className = 'bh-item';
+  newItem.innerHTML = `
+    <span>📝</span>
+    <span contenteditable="true" class="bh-item-text" style="flex:1;outline:none;border:none;background:transparent;color:var(--sidebar-text);font-size:.8rem;" onblur="if(this.innerText.trim()==='')this.parentElement.remove()">Nova subcategoria</span>
+    <button class="bh-edit" onclick="event.stopPropagation();deleteSubcategory(this)" title="Excluir">✕</button>
+  `;
+
+  itemsContainer.appendChild(newItem);
+
+  // Focar no novo elemento
+  const textSpan = newItem.querySelector('.bh-item-text');
+  textSpan.focus();
+
+  // Selecionar todo o texto
+  const range = document.createRange();
+  range.selectNodeContents(textSpan);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+// ===== FUNÇÃO PARA DELETAR SUBCATEGORIA =====
+function deleteSubcategory(btn) {
+  const item = btn.closest('.bh-item');
+  if (item) {
+    item.remove();
+  }
+}
+
+
 const colorPalette = [
   '#e74c3c','#f39c12','#f1c40f','#2ecc71','#1abc9c','#3498db',
   '#9b59b6','#e91e63','#00bcd4','#ff9800','#4caf50','#8bc34a',
